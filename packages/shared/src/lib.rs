@@ -2,6 +2,10 @@
 
 use soroban_sdk::{contracterror, contracttype, Address, BytesN};
 
+pub mod error_catalog;
+
+pub use error_catalog::{Domain, ErrorSpec, Retry, Status, ERROR_CATALOG};
+
 pub const TTL_THRESHOLD_LEDGERS: u32 = 50_000;
 pub const TTL_EXTEND_TO_LEDGERS: u32 = 500_000;
 

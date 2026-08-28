@@ -10,7 +10,8 @@ members = [
   "tests/budgets",
   "tests/cross-contract",
   "tests/time",
-  "tests/encoding"
+  "tests/encoding",
+  "tests/error-catalog"
 ]
 resolver = "2"
 
