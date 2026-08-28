@@ -27,7 +27,7 @@ All TTL values are defined in `packages/shared/src/lib.rs` and imported by every
 
 Both instance and persistent storage use the same threshold/target pair. When an entry's remaining TTL falls below `TTL_THRESHOLD_LEDGERS`, the next qualifying operation extends it to `TTL_EXTEND_TO_LEDGERS`. This is a one-sided bump: the TTL is set to `TTL_EXTEND_TO_LEDGERS` only if the current TTL is below the threshold; entries already above the threshold are not shortened.
 
-Soroban does not automatically extend TTLs. Every entry will expire and be archived unless a contract call explicitly extends it before the ledger cutoff.
+Soroban does not automatically extend TTLs. Every entry will expire and be archived unless a contract call explicitly extends it before the ledger cutoff. Archived persistent entries are restored automatically on the next access, at the cost of an extra ledger write and rent bump. The exact boundaries, restoration semantics, and operator cadence are documented in [Storage TTL, Expiration, and Restoration](./storage-ttl.md).
 
 ---
 
@@ -208,7 +208,7 @@ Note: There is no `update_proof` operation. Proof records are immutable after re
 
 ## Cross-Contract TTL Dependencies
 
-The `proof-registry` contract holds references to `issuer-registry` and `protocol-config` in its instance storage. These addresses are read by `get_issuer_registry()` and `get_protocol_config()`, which do **not** extend the proof registry's instance TTL. The instance TTL is only extended when `register_proof` writes a new proof.
+The `proof-registry` contract holds references to `issuer-registry` and `protocol-config` in its instance storage. These addresses are read by `get_issuer_registry()` and `get_protocol_config()`, which do **not** extend the proof registry's instance TTL. `initialize` is in fact the only proof-registry entry point that extends the instance entry: `register_proof` extends the proof entry it writes, not the instance. A long-idle registry therefore relies on automatic restoration of its instance entry, as described in [Storage TTL, Expiration, and Restoration](./storage-ttl.md).
 
 The `proof-registry` makes cross-contract calls to `issuer-registry` (`is_active_address`) and `protocol-config` (`is_paused`, `is_schema_version_approved`) during `register_proof`. These calls extend the TTLs of the addressed contracts under their own extension policies.
 
