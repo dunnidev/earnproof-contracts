@@ -2,6 +2,10 @@
 
 use soroban_sdk::{contracterror, contracttype, Address, BytesN};
 
+pub mod storage_namespaces;
+
+pub use storage_namespaces::{StorageClass, StorageNamespace, STORAGE_NAMESPACES};
+
 pub const TTL_THRESHOLD_LEDGERS: u32 = 50_000;
 pub const TTL_EXTEND_TO_LEDGERS: u32 = 500_000;
 

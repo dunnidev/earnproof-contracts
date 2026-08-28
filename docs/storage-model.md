@@ -10,6 +10,8 @@ Covered contracts:
 
 Shared types referenced throughout this document are defined in [`packages/shared/src/lib.rs`](../packages/shared/src/lib.rs).
 
+Namespace ownership, key-collision safety, and the rules for adding a storage key are documented separately in [Storage Namespaces and Key Safety](./storage.md).
+
 ---
 
 ## TTL Constants

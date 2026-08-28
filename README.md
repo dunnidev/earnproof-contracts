@@ -143,6 +143,7 @@ Contracts may store:
 ## Documentation
 
 - [Storage Model](docs/storage-model.md) — every DataKey variant, TTL policy, lifecycle events, and privacy boundaries
+- [Storage Namespaces and Key Safety](docs/storage.md) — namespace ownership, key-collision guarantees, durability rules, and the compatibility gate for new keys
 - [Backend Integration](docs/backend-integration.md) — contract calls and hashing rules for the EarnProof API
 - [Threat Model and Security Review Checklist](docs/threat-model.md) — comprehensive security analysis, threat enumeration, controls, and mainnet release gates
 
