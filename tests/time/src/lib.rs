@@ -23,7 +23,9 @@ mod tests {
         issuer: Address,
     }
 
-    fn bytes(env: &Env, value: u8) -> BytesN<32> { BytesN::from_array(env, &[value; 32]) }
+    fn bytes(env: &Env, value: u8) -> BytesN<32> {
+        BytesN::from_array(env, &[value; 32])
+    }
 
     fn fixture() -> Fixture {
         let env = Env::default();
@@ -42,13 +44,21 @@ mod tests {
         let proofs_id = env.register(ProofRegistryContract, ());
         let proofs = ProofRegistryContractClient::new(&env, &proofs_id);
         proofs.initialize(&admin, &issuers_id, &config_id);
-        Fixture { env, proofs, config, issuer }
+        Fixture {
+            env,
+            proofs,
+            config,
+            issuer,
+        }
     }
 
     fn register(fixture: &Fixture, id: u8, expires_at: u64) {
         fixture.proofs.register_proof(
-            &bytes(&fixture.env, id), &bytes(&fixture.env, id.wrapping_add(10)),
-            &fixture.issuer, &1, &expires_at,
+            &bytes(&fixture.env, id),
+            &bytes(&fixture.env, id.wrapping_add(10)),
+            &fixture.issuer,
+            &1,
+            &expires_at,
         );
     }
 
@@ -66,10 +76,16 @@ mod tests {
     fn registration_requires_strictly_future_expiration() {
         let fixture = fixture();
         for (id, expires_at) in [(1, NOW - 1), (2, NOW), (3, 0)] {
-            assert_eq!(fixture.proofs.try_register_proof(
-                &bytes(&fixture.env, id), &bytes(&fixture.env, id + 10),
-                &fixture.issuer, &1, &expires_at,
-            ), Err(Ok(ProofError::ProofExpired)));
+            assert_eq!(
+                fixture.proofs.try_register_proof(
+                    &bytes(&fixture.env, id),
+                    &bytes(&fixture.env, id + 10),
+                    &fixture.issuer,
+                    &1,
+                    &expires_at,
+                ),
+                Err(Ok(ProofError::ProofExpired))
+            );
         }
     }
 
@@ -87,13 +103,27 @@ mod tests {
     #[test]
     fn zero_schema_and_pause_are_deterministic_guards() {
         let fixture = fixture();
-        assert_eq!(fixture.proofs.try_register_proof(
-            &bytes(&fixture.env, 5), &bytes(&fixture.env, 6), &fixture.issuer, &0, &(NOW + 1)
-        ), Err(Ok(ProofError::InvalidSchemaVersion)));
+        assert_eq!(
+            fixture.proofs.try_register_proof(
+                &bytes(&fixture.env, 5),
+                &bytes(&fixture.env, 6),
+                &fixture.issuer,
+                &0,
+                &(NOW + 1)
+            ),
+            Err(Ok(ProofError::InvalidSchemaVersion))
+        );
         fixture.config.pause();
-        assert_eq!(fixture.proofs.try_register_proof(
-            &bytes(&fixture.env, 7), &bytes(&fixture.env, 8), &fixture.issuer, &1, &(NOW + 1)
-        ), Err(Ok(ProofError::InvalidSchemaVersion)));
+        assert_eq!(
+            fixture.proofs.try_register_proof(
+                &bytes(&fixture.env, 7),
+                &bytes(&fixture.env, 8),
+                &fixture.issuer,
+                &1,
+                &(NOW + 1)
+            ),
+            Err(Ok(ProofError::InvalidSchemaVersion))
+        );
     }
 
     #[test]
