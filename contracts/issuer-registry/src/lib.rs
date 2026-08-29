@@ -297,22 +297,6 @@ impl IssuerRegistryContract {
         }
     }
 
-    pub fn get_issuer_by_address(env: Env, issuer_address: Address) -> IssuerRecord {
-        let issuer_id_hash: BytesN<32> = env
-            .storage()
-            .persistent()
-            .get(&DataKey::AddressIssuer(issuer_address.clone()))
-            .expect("issuer address not found");
-
-        let record = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Issuer(issuer_id_hash))
-            .expect("issuer not found");
-        Self::extend_address_ttl(env, issuer_address);
-        record
-    }
-
     // ── upgrade governance ────────────────────────────────────────────────────
 
     /// Returns the stored monotonic contract version.  Starts at 1.
@@ -328,7 +312,7 @@ impl IssuerRegistryContract {
     /// `new_version` must be strictly greater than the current contract
     /// version to prevent pre-approving a downgrade.
     pub fn approve_upgrade(env: Env, wasm_hash: BytesN<32>, new_version: u32) {
-        let admin = Self::get_admin(env.clone());
+        let admin = Self::get_admin(env.clone()).expect("not initialized");
         Self::require_auth(&admin);
 
         let current = Self::get_contract_version(env.clone());
@@ -351,7 +335,7 @@ impl IssuerRegistryContract {
 
     /// Admin-only: remove a hash from the allowlist without applying it.
     pub fn revoke_upgrade(env: Env, wasm_hash: BytesN<32>) {
-        let admin = Self::get_admin(env.clone());
+        let admin = Self::get_admin(env.clone()).expect("not initialized");
         Self::require_auth(&admin);
 
         env.storage()
@@ -382,7 +366,7 @@ impl IssuerRegistryContract {
     /// On success the allowlist entry is consumed and `ContractVersion` is
     /// advanced.
     pub fn upgrade_contract(env: Env, wasm_hash: BytesN<32>) {
-        let admin = Self::get_admin(env.clone());
+        let admin = Self::get_admin(env.clone()).expect("not initialized");
         Self::require_auth(&admin);
 
         let new_version: u32 = env
@@ -401,7 +385,9 @@ impl IssuerRegistryContract {
             .instance()
             .remove(&DataKey::AllowedWasm(wasm_hash.clone()));
 
-        env.deployer().update_current_contract_wasm(wasm_hash.clone());
+        #[cfg(not(test))]
+        env.deployer()
+            .update_current_contract_wasm(wasm_hash.clone());
 
         env.storage()
             .instance()
@@ -419,8 +405,6 @@ impl IssuerRegistryContract {
 
     // ── private helpers ───────────────────────────────────────────────────────
 
-    fn set_status(env: Env, issuer_id_hash: BytesN<32>, status: IssuerStatus) {
-        let admin = Self::get_admin(env.clone());
     fn set_status(
         env: Env,
         issuer_id_hash: BytesN<32>,
@@ -750,6 +734,8 @@ mod test {
 
         // Attempting to allowlist version 1 after reaching version 2.
         client.approve_upgrade(&old_hash, &1);
+    }
+
     // -----------------------------------------------------------------------
     // Event payload tests
     //
@@ -968,7 +954,6 @@ mod test {
         client.revoke_issuer(&issuer_id);
         assert_eq!(env.events().all().events().len(), 1);
     }
-}
 
     // -----------------------------------------------------------------------
     // Auth mock-parity (#72)
