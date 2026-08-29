@@ -1,9 +1,9 @@
 use earnproof_shared::{IssuerStatus, ProofStatus};
 use issuer_registry::{IssuerRegistryContract, IssuerRegistryContractClient};
 use proof_registry::{ProofRegistryContract, ProofRegistryContractClient};
-use protocol_config::{ProtocolConfigContract, ProtocolConfigContractClient};
 use proptest::prelude::*;
-use soroban_sdk::{Address, BytesN, Env};
+use protocol_config::{ProtocolConfigContract, ProtocolConfigContractClient};
+use soroban_sdk::{testutils::Ledger as _, Address, BytesN, Env};
 
 const ADMIN: &str = "GCFIRY65OQE7DFP5KLNS2PF2LVZMUZYJX4OZIEQ36N2IQANUB5XVYOJR";
 const ISSUER: &str = "GCATS5YOVB6ROX2WUNKGNQ2MP3GMXDMKSG2O4N5CLX3A6W4PZGZZI55U";
@@ -13,11 +13,17 @@ fn bytes(env: &Env, value: u8) -> BytesN<32> {
     BytesN::from_array(env, &[value; 32])
 }
 
-fn try_op(env: &Env, op: impl FnOnce()) -> bool {
+fn try_op(_env: &Env, op: impl FnOnce()) -> bool {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(op)).is_ok()
 }
 
-fn setup_issuer() -> (Env, IssuerRegistryContractClient<'static>, Address, BytesN<32>, Address) {
+fn setup_issuer() -> (
+    Env,
+    IssuerRegistryContractClient<'static>,
+    Address,
+    BytesN<32>,
+    Address,
+) {
     let env = Env::default();
     env.mock_all_auths();
     let contract_id = env.register(IssuerRegistryContract, ());
@@ -57,7 +63,15 @@ fn setup_proof() -> (
     issuer_registry.initialize(&admin);
     issuer_registry.register_issuer(&bytes(&env, 9), &issuer_address, &bytes(&env, 8));
     proof.initialize(&admin, &issuer_registry_id, &protocol_id);
-    (env, proof, protocol, issuer_registry, admin, issuer_address, base_time)
+    (
+        env,
+        proof,
+        protocol,
+        issuer_registry,
+        admin,
+        issuer_address,
+        base_time,
+    )
 }
 
 proptest! {
@@ -80,9 +94,9 @@ proptest! {
 
             let before = client.get_issuer(&issuer_id);
             let success = try_op(&env, || match op_kind {
-                0 => client.suspend_issuer(&issuer_id),
-                1 => client.reactivate_issuer(&issuer_id),
-                _ => client.revoke_issuer(&issuer_id),
+                0 => { client.suspend_issuer(&issuer_id); }
+                1 => { client.reactivate_issuer(&issuer_id); }
+                _ => { client.revoke_issuer(&issuer_id); }
             });
             prop_assert_eq!(success, expected_success, "iteration {}", i);
 
@@ -99,7 +113,7 @@ proptest! {
             }
 
             let record = client.get_issuer(&issuer_id);
-            prop_assert_eq!(record.status, status);
+            prop_assert_eq!(record.status, status.clone());
         }
     }
 
@@ -113,11 +127,11 @@ proptest! {
 
         let result = if duplicate_id {
             try_op(&env, || {
-                client.register_issuer(&issuer_id, &other_address, &duplicate_metadata)
+                client.register_issuer(&issuer_id, &other_address, &duplicate_metadata);
             })
         } else {
             try_op(&env, || {
-                client.register_issuer(&other_id, &issuer_address, &duplicate_metadata)
+                client.register_issuer(&other_id, &issuer_address, &duplicate_metadata);
             })
         };
         prop_assert!(!result);
@@ -136,16 +150,16 @@ proptest! {
         let proof_id = bytes(&env, 1);
         let expires_at = base_time + expires_delta;
         let success = try_op(&env, || {
-            proof.register_proof(&proof_id, &bytes(&env, 2), &issuer_address, &1, &expires_at)
+            proof.register_proof(&proof_id, &bytes(&env, 2), &issuer_address, &1, &expires_at);
         });
         prop_assert!(success);
 
         match action {
             0 => {
-                try_op(&env, || proof.revoke_proof(&proof_id));
+                try_op(&env, || { proof.revoke_proof(&proof_id); });
             }
             1 => {
-                try_op(&env, || proof.admin_revoke_proof(&proof_id));
+                try_op(&env, || { proof.admin_revoke_proof(&proof_id); });
             }
             _ => {
                 env.ledger().set_timestamp(expires_at + 1);
@@ -166,17 +180,17 @@ proptest! {
         let (env, proof, protocol, _issuer_registry, _admin, issuer_address, _base_time) = setup_proof();
         for pause in pauses {
             if pause {
-                try_op(&env, || protocol.pause());
+                try_op(&env, || { protocol.pause(); });
             } else {
-                try_op(&env, || protocol.unpause());
+                try_op(&env, || { protocol.unpause(); });
             }
         }
 
         let proof_id = bytes(&env, 1);
         let success = try_op(&env, || {
-            proof.register_proof(&proof_id, &bytes(&env, 2), &issuer_address, &1, &2_000)
+            proof.register_proof(&proof_id, &bytes(&env, 2), &issuer_address, &1, &2_000);
         });
-        let exists = try_op(&env, || proof.get_proof(&proof_id));
+        let exists = try_op(&env, || { proof.get_proof(&proof_id); });
 
         if protocol.is_paused() {
             prop_assert!(!success);
@@ -199,7 +213,7 @@ proptest! {
         let other_admin = Address::from_str(&env, ISSUER_TWO);
         client.initialize(&admin);
 
-        let mut current_admin = admin;
+        let mut current_admin = admin.clone();
         let mut approved = false;
 
         for op in ops {
@@ -210,23 +224,23 @@ proptest! {
                     } else {
                         admin.clone()
                     };
-                    let result = try_op(&env, || client.set_admin(&new_admin));
+                    let result = try_op(&env, || { client.set_admin(&new_admin); });
                     prop_assert!(result);
                     current_admin = new_admin;
                 }
                 _ => {
                     if approved {
-                        let result = try_op(&env, || client.deprecate_schema_version(&1));
+                        let result = try_op(&env, || { client.deprecate_schema_version(&1); });
                         prop_assert!(result);
                         approved = false;
                     } else {
-                        let result = try_op(&env, || client.approve_schema_version(&1));
+                        let result = try_op(&env, || { client.approve_schema_version(&1); });
                         prop_assert!(result);
                         approved = true;
                     }
                 }
             }
-            prop_assert_eq!(client.get_admin(), current_admin);
+            prop_assert_eq!(client.get_admin(), current_admin.clone());
             prop_assert_eq!(client.is_schema_version_approved(&1), approved);
         }
     }

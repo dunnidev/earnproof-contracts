@@ -2,11 +2,31 @@
 
 <!-- BEGIN GENERATED: do not edit. -->
 
+## issuer-registry::approve_upgrade
+
+- Parameters: `env: Env, wasm_hash: BytesN<32>, new_version: u32`
+- Result: `()`
+- Authorization: current admin
+- Storage effect: documented in lifecycle specification
+- Event effect: none unless documented in lifecycle specification
+- Failure atomicity: Soroban invocation rollback
+- Source: `contracts/issuer-registry/src/lib.rs`
+
 ## issuer-registry::get_admin
 
 - Parameters: `env: Env`
 - Result: `Result<Address, ContractError>`
 - Authorization: none
+- Storage effect: read-only
+- Event effect: none unless documented in lifecycle specification
+- Failure atomicity: Soroban invocation rollback
+- Source: `contracts/issuer-registry/src/lib.rs`
+
+## issuer-registry::get_contract_version
+
+- Parameters: `env: Env`
+- Result: `u32`
+- Authorization: current admin
 - Storage effect: read-only
 - Event effect: none unless documented in lifecycle specification
 - Failure atomicity: Soroban invocation rollback
@@ -62,6 +82,16 @@
 - Failure atomicity: Soroban invocation rollback
 - Source: `contracts/issuer-registry/src/lib.rs`
 
+## issuer-registry::is_upgrade_allowed
+
+- Parameters: `env: Env, wasm_hash: BytesN<32>`
+- Result: `bool`
+- Authorization: current admin
+- Storage effect: read-only
+- Event effect: none unless documented in lifecycle specification
+- Failure atomicity: Soroban invocation rollback
+- Source: `contracts/issuer-registry/src/lib.rs`
+
 ## issuer-registry::reactivate_issuer
 
 - Parameters: `env: Env, issuer_id_hash: BytesN<32>`
@@ -86,6 +116,16 @@
 
 - Parameters: `env: Env, issuer_id_hash: BytesN<32>`
 - Result: `Result<(), IssuerError>`
+- Authorization: current admin
+- Storage effect: documented in lifecycle specification
+- Event effect: none unless documented in lifecycle specification
+- Failure atomicity: Soroban invocation rollback
+- Source: `contracts/issuer-registry/src/lib.rs`
+
+## issuer-registry::revoke_upgrade
+
+- Parameters: `env: Env, wasm_hash: BytesN<32>`
+- Result: `()`
 - Authorization: current admin
 - Storage effect: documented in lifecycle specification
 - Event effect: none unless documented in lifecycle specification
@@ -122,10 +162,30 @@
 - Failure atomicity: Soroban invocation rollback
 - Source: `contracts/issuer-registry/src/lib.rs`
 
+## issuer-registry::upgrade_contract
+
+- Parameters: `env: Env, wasm_hash: BytesN<32>`
+- Result: `()`
+- Authorization: current admin
+- Storage effect: documented in lifecycle specification
+- Event effect: none unless documented in lifecycle specification
+- Failure atomicity: Soroban invocation rollback
+- Source: `contracts/issuer-registry/src/lib.rs`
+
 ## proof-registry::admin_revoke_proof
 
 - Parameters: `env: Env, proof_id_hash: BytesN<32>`
 - Result: `Result<(), ProofError>`
+- Authorization: current admin
+- Storage effect: documented in lifecycle specification
+- Event effect: none unless documented in lifecycle specification
+- Failure atomicity: Soroban invocation rollback
+- Source: `contracts/proof-registry/src/lib.rs`
+
+## proof-registry::approve_upgrade
+
+- Parameters: `env: Env, wasm_hash: BytesN<32>, new_version: u32`
+- Result: `()`
 - Authorization: current admin
 - Storage effect: documented in lifecycle specification
 - Event effect: none unless documented in lifecycle specification
@@ -137,6 +197,16 @@
 - Parameters: `env: Env`
 - Result: `Result<Address, ContractError>`
 - Authorization: none
+- Storage effect: read-only
+- Event effect: none unless documented in lifecycle specification
+- Failure atomicity: Soroban invocation rollback
+- Source: `contracts/proof-registry/src/lib.rs`
+
+## proof-registry::get_contract_version
+
+- Parameters: `env: Env`
+- Result: `u32`
+- Authorization: current admin
 - Storage effect: read-only
 - Event effect: none unless documented in lifecycle specification
 - Failure atomicity: Soroban invocation rollback
@@ -192,6 +262,16 @@
 - Failure atomicity: Soroban invocation rollback
 - Source: `contracts/proof-registry/src/lib.rs`
 
+## proof-registry::is_upgrade_allowed
+
+- Parameters: `env: Env, wasm_hash: BytesN<32>`
+- Result: `bool`
+- Authorization: current admin
+- Storage effect: read-only
+- Event effect: none unless documented in lifecycle specification
+- Failure atomicity: Soroban invocation rollback
+- Source: `contracts/proof-registry/src/lib.rs`
+
 ## proof-registry::is_valid_proof
 
 - Parameters: `env: Env, proof_id_hash: BytesN<32>`
@@ -222,10 +302,40 @@
 - Failure atomicity: Soroban invocation rollback
 - Source: `contracts/proof-registry/src/lib.rs`
 
+## proof-registry::revoke_upgrade
+
+- Parameters: `env: Env, wasm_hash: BytesN<32>`
+- Result: `()`
+- Authorization: current admin
+- Storage effect: documented in lifecycle specification
+- Event effect: none unless documented in lifecycle specification
+- Failure atomicity: Soroban invocation rollback
+- Source: `contracts/proof-registry/src/lib.rs`
+
+## proof-registry::upgrade_contract
+
+- Parameters: `env: Env, wasm_hash: BytesN<32>`
+- Result: `()`
+- Authorization: current admin
+- Storage effect: documented in lifecycle specification
+- Event effect: none unless documented in lifecycle specification
+- Failure atomicity: Soroban invocation rollback
+- Source: `contracts/proof-registry/src/lib.rs`
+
 ## protocol-config::approve_schema_version
 
 - Parameters: `env: Env, version: u32`
 - Result: `Result<(), ContractError>`
+- Authorization: current admin
+- Storage effect: documented in lifecycle specification
+- Event effect: none unless documented in lifecycle specification
+- Failure atomicity: Soroban invocation rollback
+- Source: `contracts/protocol-config/src/lib.rs`
+
+## protocol-config::approve_upgrade
+
+- Parameters: `env: Env, wasm_hash: BytesN<32>, new_version: u32`
+- Result: `()`
 - Authorization: current admin
 - Storage effect: documented in lifecycle specification
 - Event effect: none unless documented in lifecycle specification
@@ -262,6 +372,16 @@
 - Failure atomicity: Soroban invocation rollback
 - Source: `contracts/protocol-config/src/lib.rs`
 
+## protocol-config::get_contract_version
+
+- Parameters: `env: Env`
+- Result: `u32`
+- Authorization: current admin
+- Storage effect: read-only
+- Event effect: none unless documented in lifecycle specification
+- Failure atomicity: Soroban invocation rollback
+- Source: `contracts/protocol-config/src/lib.rs`
+
 ## protocol-config::initialize
 
 - Parameters: `env: Env, admin: Address`
@@ -292,10 +412,30 @@
 - Failure atomicity: Soroban invocation rollback
 - Source: `contracts/protocol-config/src/lib.rs`
 
+## protocol-config::is_upgrade_allowed
+
+- Parameters: `env: Env, wasm_hash: BytesN<32>`
+- Result: `bool`
+- Authorization: current admin
+- Storage effect: read-only
+- Event effect: none unless documented in lifecycle specification
+- Failure atomicity: Soroban invocation rollback
+- Source: `contracts/protocol-config/src/lib.rs`
+
 ## protocol-config::pause
 
 - Parameters: `env: Env`
 - Result: `Result<(), ContractError>`
+- Authorization: current admin
+- Storage effect: documented in lifecycle specification
+- Event effect: none unless documented in lifecycle specification
+- Failure atomicity: Soroban invocation rollback
+- Source: `contracts/protocol-config/src/lib.rs`
+
+## protocol-config::revoke_upgrade
+
+- Parameters: `env: Env, wasm_hash: BytesN<32>`
+- Result: `()`
 - Authorization: current admin
 - Storage effect: documented in lifecycle specification
 - Event effect: none unless documented in lifecycle specification
@@ -316,6 +456,16 @@
 
 - Parameters: `env: Env`
 - Result: `Result<(), ContractError>`
+- Authorization: current admin
+- Storage effect: documented in lifecycle specification
+- Event effect: none unless documented in lifecycle specification
+- Failure atomicity: Soroban invocation rollback
+- Source: `contracts/protocol-config/src/lib.rs`
+
+## protocol-config::upgrade_contract
+
+- Parameters: `env: Env, wasm_hash: BytesN<32>`
+- Result: `()`
 - Authorization: current admin
 - Storage effect: documented in lifecycle specification
 - Event effect: none unless documented in lifecycle specification
