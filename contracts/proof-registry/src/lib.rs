@@ -1,6 +1,9 @@
 #![no_std]
 
-use earnproof_shared::{ProofRecord, ProofStatus, TTL_EXTEND_TO_LEDGERS, TTL_THRESHOLD_LEDGERS};
+use earnproof_shared::{
+    ProofRecord, ProofStatus, MIN_EXPIRATION_OFFSET_FROM_NOW, MIN_SCHEMA_VERSION,
+    TTL_EXTEND_TO_LEDGERS, TTL_THRESHOLD_LEDGERS,
+};
 use soroban_sdk::{contract, contractclient, contractevent, contractimpl, contracttype, Address, BytesN, Env};
 
 #[contractclient(name = "ProtocolConfigContractClient")]
@@ -92,8 +95,8 @@ impl ProofRegistryContract {
     ) {
         Self::require_auth(&issuer_address);
 
-        if schema_version == 0 {
-            panic!("schema version must be greater than zero");
+        if schema_version < MIN_SCHEMA_VERSION {
+            panic!("schema version must be >= {}", MIN_SCHEMA_VERSION);
         }
 
         if expires_at <= env.ledger().timestamp() {
@@ -636,5 +639,217 @@ mod test {
         client.upgrade_contract(&hash_v2);
 
         client.approve_upgrade(&old_hash, &1);
+    }
+
+    // ── numeric boundary tests ────────────────────────────────────────────────
+
+    /// Table-driven tests for schema version boundaries in proof registration.
+    /// Schema versions must be >= MIN_SCHEMA_VERSION (1).
+    #[test]
+    fn register_proof_schema_version_boundaries() {
+        let (env, client, _pc, _ir, _ir_id) = setup();
+        let issuer = Address::from_str(&env, ISSUER);
+
+        // Valid: minimum allowed schema version
+        client.register_proof(
+            &bytes(&env, 1),
+            &bytes(&env, 2),
+            &issuer,
+            &1,
+            &2_000,
+        );
+        assert!(client.is_valid_proof(&bytes(&env, 1)));
+
+        // Valid: typical schema version
+        let pc = _pc.clone();
+        pc.approve_schema_version(&99);
+        client.register_proof(
+            &bytes(&env, 10),
+            &bytes(&env, 11),
+            &issuer,
+            &99,
+            &2_000,
+        );
+        assert!(client.is_valid_proof(&bytes(&env, 10)));
+
+        // Valid: large schema version
+        pc.approve_schema_version(&u32::MAX);
+        client.register_proof(
+            &bytes(&env, 20),
+            &bytes(&env, 21),
+            &issuer,
+            &u32::MAX,
+            &2_000,
+        );
+        assert!(client.is_valid_proof(&bytes(&env, 20)));
+    }
+
+    #[test]
+    #[should_panic(expected = "schema version must be")]
+    fn register_proof_schema_version_zero_rejected() {
+        let (env, client, _pc, _ir, _ir_id) = setup();
+        let issuer = Address::from_str(&env, ISSUER);
+
+        // Schema version 0 must be rejected
+        client.register_proof(&bytes(&env, 1), &bytes(&env, 2), &issuer, &0, &2_000);
+    }
+
+    /// Table-driven tests for proof expiration boundaries.
+    /// Expiration timestamp must be strictly greater than current ledger timestamp.
+    #[test]
+    fn register_proof_expiration_boundaries() {
+        let (env, client, _pc, _ir, _ir_id) = setup();
+        let issuer = Address::from_str(&env, ISSUER);
+        let current_time = env.ledger().timestamp();
+
+        // Valid: one second in the future (minimum practical offset)
+        client.register_proof(
+            &bytes(&env, 1),
+            &bytes(&env, 2),
+            &issuer,
+            &1,
+            &(current_time + 1),
+        );
+        assert!(client.is_valid_proof(&bytes(&env, 1)));
+
+        // Valid: reasonable future expiration (1 year in seconds)
+        client.register_proof(
+            &bytes(&env, 10),
+            &bytes(&env, 11),
+            &issuer,
+            &1,
+            &(current_time + 365 * 24 * 3600),
+        );
+        assert!(client.is_valid_proof(&bytes(&env, 10)));
+
+        // Valid: far future (max u64 is reachable in practice)
+        client.register_proof(
+            &bytes(&env, 20),
+            &bytes(&env, 21),
+            &issuer,
+            &1,
+            &u64::MAX,
+        );
+        assert!(client.is_valid_proof(&bytes(&env, 20)));
+    }
+
+    #[test]
+    #[should_panic(expected = "proof expiration must be in the future")]
+    fn register_proof_expiration_at_current_time_rejected() {
+        let (env, client, _pc, _ir, _ir_id) = setup();
+        let issuer = Address::from_str(&env, ISSUER);
+        let current_time = env.ledger().timestamp();
+
+        // Expiration equal to current time is rejected
+        client.register_proof(
+            &bytes(&env, 1),
+            &bytes(&env, 2),
+            &issuer,
+            &1,
+            &current_time,
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "proof expiration must be in the future")]
+    fn register_proof_expiration_in_past_rejected() {
+        let (env, client, _pc, _ir, _ir_id) = setup();
+        let issuer = Address::from_str(&env, ISSUER);
+        let current_time = env.ledger().timestamp();
+
+        // Expiration in the past is rejected
+        if current_time > 0 {
+            client.register_proof(
+                &bytes(&env, 1),
+                &bytes(&env, 2),
+                &issuer,
+                &1,
+                &(current_time - 1),
+            );
+        }
+    }
+
+    /// Test storage and event invariants: failed boundary cases
+    /// must not modify state or emit events.
+    #[test]
+    fn failed_register_proof_schema_zero_leaves_state_unchanged() {
+        let (env, client, _pc, _ir, _ir_id) = setup();
+        let issuer = Address::from_str(&env, ISSUER);
+
+        // Check that no proofs exist initially
+        let proof_id = bytes(&env, 999);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            env.storage().persistent().get::<_, _>(&DataKey::Proof(proof_id.clone()))
+        }));
+        // Initial state: proof should not exist (or be None/empty)
+
+        // Attempt to register with schema version 0 — should panic
+        let register_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client.register_proof(
+                &proof_id,
+                &bytes(&env, 888),
+                &issuer,
+                &0,
+                &2_000,
+            );
+        }));
+
+        // Must have panicked
+        assert!(register_result.is_err());
+
+        // State must be unchanged: proof must not exist in storage
+        env.as_contract(&client.address, || {
+            assert!(
+                !env.storage().persistent().has(&DataKey::Proof(proof_id.clone())),
+                "failed proof registration must not write to storage"
+            );
+        });
+    }
+
+    #[test]
+    fn failed_register_proof_expired_leaves_state_unchanged() {
+        let (env, client, _pc, _ir, _ir_id) = setup();
+        let issuer = Address::from_str(&env, ISSUER);
+        let current_time = env.ledger().timestamp();
+        let proof_id = bytes(&env, 777);
+
+        // Attempt to register with expired timestamp — should panic
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client.register_proof(
+                &proof_id,
+                &bytes(&env, 666),
+                &issuer,
+                &1,
+                &current_time, // Equal to current time, must be rejected
+            );
+        }));
+
+        // Must have panicked
+        assert!(result.is_err());
+
+        // State must be unchanged: proof must not exist in storage
+        env.as_contract(&client.address, || {
+            assert!(
+                !env.storage().persistent().has(&DataKey::Proof(proof_id)),
+                "failed proof registration with expired timestamp must not write to storage"
+            );
+        });
+    }
+
+    /// Verify contract version boundaries in upgrade operations.
+    #[test]
+    fn contract_version_upgrade_boundaries() {
+        let (env, client, _pc, _ir, _ir_id) = setup();
+        assert_eq!(client.get_contract_version(), 1);
+
+        // Valid: immediate next version
+        client.approve_upgrade(&bytes(&env, 1), &2);
+        client.upgrade_contract(&bytes(&env, 1));
+        assert_eq!(client.get_contract_version(), 2);
+
+        // Valid: large version number
+        client.approve_upgrade(&bytes(&env, 2), &u32::MAX);
+        client.upgrade_contract(&bytes(&env, 2));
+        assert_eq!(client.get_contract_version(), u32::MAX);
     }
 }

@@ -1,6 +1,9 @@
 #![no_std]
 
-use earnproof_shared::{IssuerRecord, IssuerStatus, TTL_EXTEND_TO_LEDGERS, TTL_THRESHOLD_LEDGERS};
+use earnproof_shared::{
+    IssuerRecord, IssuerStatus, MIN_CONTRACT_VERSION, TTL_EXTEND_TO_LEDGERS,
+    TTL_THRESHOLD_LEDGERS,
+};
 use soroban_sdk::{contract, contractevent, contractimpl, contracttype, Address, BytesN, Env};
 
 #[contract]
@@ -595,5 +598,83 @@ mod test {
 
         // Attempting to allowlist version 1 after reaching version 2.
         client.approve_upgrade(&old_hash, &1);
+    }
+
+    // ── numeric boundary tests ────────────────────────────────────────────────
+
+    /// Contract version boundaries for issuer-registry.
+    /// While issuer-registry has no direct numeric user inputs, it does support
+    /// contract versioning and upgrade governance. This test covers version boundaries.
+    #[test]
+    fn contract_version_initialized_and_upgradeable() {
+        let (env, client, _admin) = setup();
+
+        // Contract version should be initialized to 1
+        assert_eq!(client.get_contract_version(), 1);
+
+        // Valid: upgrade to next version
+        client.approve_upgrade(&bytes(&env, 1), &2);
+        assert!(client.is_upgrade_allowed(&bytes(&env, 1)));
+    }
+
+    #[test]
+    fn contract_version_upgrade_boundaries() {
+        let (env, client, _admin) = setup();
+
+        // Valid: immediate next version
+        client.approve_upgrade(&bytes(&env, 1), &2);
+        client.upgrade_contract(&bytes(&env, 1));
+        assert_eq!(client.get_contract_version(), 2);
+
+        // Valid: large version number
+        client.approve_upgrade(&bytes(&env, 2), &u32::MAX);
+        client.upgrade_contract(&bytes(&env, 2));
+        assert_eq!(client.get_contract_version(), u32::MAX);
+    }
+
+    #[test]
+    #[should_panic(expected = "new_version must be greater than current contract version")]
+    fn contract_version_equal_current_rejected() {
+        let (env, client, _admin) = setup();
+        // Current version is 1; attempting version 1 is rejected
+        client.approve_upgrade(&bytes(&env, 1), &1);
+    }
+
+    #[test]
+    #[should_panic(expected = "new_version must be greater than current contract version")]
+    fn contract_version_below_current_rejected() {
+        let (env, client, _admin) = setup();
+        // Current version is 1; attempting version 0 is rejected
+        client.approve_upgrade(&bytes(&env, 1), &0);
+    }
+
+    /// Test storage invariants: failed boundary cases must not modify state.
+    #[test]
+    fn failed_upgrade_version_downgrade_leaves_state_unchanged() {
+        let (env, client, _admin) = setup();
+
+        let contract_version_before = client.get_contract_version();
+        let hash = bytes(&env, 0x88);
+
+        // Attempt to allowlist a downgrade
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client.approve_upgrade(&hash, &0);
+        }));
+
+        // Must have panicked
+        assert!(result.is_err());
+
+        // Contract version must not change
+        assert_eq!(
+            client.get_contract_version(),
+            contract_version_before,
+            "contract version must not change on failed upgrade approval"
+        );
+
+        // Hash must not be on allowlist
+        assert!(
+            !client.is_upgrade_allowed(&hash),
+            "failed upgrade approval must not add hash to allowlist"
+        );
     }
 }
