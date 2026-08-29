@@ -1,6 +1,6 @@
 #![no_std]
 
-use earnproof_shared::{TTL_EXTEND_TO_LEDGERS, TTL_THRESHOLD_LEDGERS};
+use earnproof_shared::{ContractError, TTL_EXTEND_TO_LEDGERS, TTL_THRESHOLD_LEDGERS};
 use soroban_sdk::{contract, contractevent, contractimpl, contracttype, Address, BytesN, Env};
 
 #[contract]
@@ -86,6 +86,7 @@ impl ProtocolConfigContract {
             return Err(ContractError::AlreadyInitialized);
         }
 
+        Self::require_valid_principal(&admin)?;
         Self::require_auth(&admin);
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::Paused, &false);
@@ -109,6 +110,7 @@ impl ProtocolConfigContract {
 
     pub fn set_admin(env: Env, new_admin: Address) -> Result<(), ContractError> {
         let admin = Self::get_admin(env.clone())?;
+        Self::require_valid_principal(&new_admin)?;
         Self::require_auth(&admin);
         env.storage().instance().set(&DataKey::Admin, &new_admin);
         Self::bump_config_version(env.clone());
@@ -306,8 +308,15 @@ impl ProtocolConfigContract {
 
     // ── private helpers ──────────────────────────────────────────────────────
 
-    fn ensure_nonzero_version(version: u32) {
+    fn ensure_nonzero_version(version: u32) -> Result<(), ContractError> {
         if version == 0 {
+            return Err(ContractError::InvalidInput);
+        }
+        Ok(())
+    }
+
+    fn require_valid_principal(address: &Address) -> Result<(), ContractError> {
+        if !earnproof_shared::is_valid_principal_address(address) {
             return Err(ContractError::InvalidInput);
         }
         Ok(())

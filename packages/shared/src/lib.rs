@@ -5,6 +5,25 @@ use soroban_sdk::{contracterror, contracttype, Address, BytesN};
 pub const TTL_THRESHOLD_LEDGERS: u32 = 50_000;
 pub const TTL_EXTEND_TO_LEDGERS: u32 = 500_000;
 
+pub fn is_zero_or_sentinel_address(address: &Address) -> bool {
+    let value = address.to_string();
+    let sentinel = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    value == sentinel || value.len() == 56 && value.chars().all(|character| character == 'A')
+}
+
+pub fn is_valid_principal_address(address: &Address) -> bool {
+    let value = address.to_string();
+    if value.is_empty() || value.len() != 56 {
+        return false;
+    }
+    if value.chars().all(|character| character == 'A') || is_zero_or_sentinel_address(address) {
+        return false;
+    }
+    value
+        .chars()
+        .all(|character| matches!(character, 'A'..='Z' | '2'..='7'))
+}
+
 // ---------------------------------------------------------------------------
 // Error Codes
 //
@@ -37,6 +56,7 @@ pub enum ContractError {
 
     // Input validation errors (60-79)
     InvalidInput = 60,
+    InvalidAddress = 61,
 
     // Protocol state errors (80-99)
     ProtocolPaused = 80,
@@ -54,6 +74,7 @@ pub enum IssuerError {
     IssuerRevoked = 204,
     IssuerInactive = 205,
     InvalidTransition = 206,
+    InvalidAddress = 207,
 }
 
 /// Proof-specific errors (300-399).
@@ -67,6 +88,7 @@ pub enum ProofError {
     ProofExpired = 303,
     InvalidSchemaVersion = 304,
     SchemaVersionNotApproved = 305,
+    InvalidAddress = 306,
 }
 
 #[contracttype]

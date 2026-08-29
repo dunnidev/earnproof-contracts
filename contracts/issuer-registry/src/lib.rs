@@ -111,6 +111,7 @@ impl IssuerRegistryContract {
             return Err(ContractError::AlreadyInitialized);
         }
 
+        Self::require_valid_admin(&admin)?;
         Self::require_auth(&admin);
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage()
@@ -134,6 +135,7 @@ impl IssuerRegistryContract {
         metadata_hash: BytesN<32>,
     ) -> Result<(), IssuerError> {
         let admin = Self::get_admin(env.clone()).map_err(|_| IssuerError::IssuerNotFound)?;
+        Self::require_valid_issuer_address(&issuer_address)?;
         Self::require_auth(&admin);
 
         let key = DataKey::Issuer(issuer_id_hash.clone());
@@ -225,6 +227,7 @@ impl IssuerRegistryContract {
         new_address: Address,
     ) -> Result<(), IssuerError> {
         let admin = Self::get_admin(env.clone()).map_err(|_| IssuerError::IssuerNotFound)?;
+        Self::require_valid_issuer_address(&new_address)?;
         Self::require_auth(&admin);
 
         let key = DataKey::Issuer(issuer_id_hash.clone());
@@ -236,6 +239,9 @@ impl IssuerRegistryContract {
 
         if record.status == IssuerStatus::Revoked {
             return Err(IssuerError::IssuerRevoked);
+        }
+        if new_address == record.issuer_address {
+            return Err(IssuerError::InvalidAddress);
         }
 
         let new_address_key = DataKey::AddressIssuer(new_address.clone());
@@ -419,8 +425,20 @@ impl IssuerRegistryContract {
 
     // ── private helpers ───────────────────────────────────────────────────────
 
-    fn set_status(env: Env, issuer_id_hash: BytesN<32>, status: IssuerStatus) {
-        let admin = Self::get_admin(env.clone());
+    fn require_valid_admin(address: &Address) -> Result<(), ContractError> {
+        if !earnproof_shared::is_valid_principal_address(address) {
+            return Err(ContractError::InvalidInput);
+        }
+        Ok(())
+    }
+
+    fn require_valid_issuer_address(address: &Address) -> Result<(), IssuerError> {
+        if !earnproof_shared::is_valid_principal_address(address) {
+            return Err(IssuerError::InvalidAddress);
+        }
+        Ok(())
+    }
+
     fn set_status(
         env: Env,
         issuer_id_hash: BytesN<32>,

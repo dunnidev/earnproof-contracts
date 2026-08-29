@@ -71,6 +71,8 @@ impl ProofRegistryContract {
             return Err(ContractError::AlreadyInitialized);
         }
 
+        Self::require_valid_principal(&admin)?;
+        Self::validate_dependency_addresses(&env, &issuer_registry, &protocol_config)?;
         Self::require_auth(&admin);
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage()
@@ -94,6 +96,17 @@ impl ProofRegistryContract {
         schema_version: u32,
         expires_at: u64,
     ) -> Result<(), ProofError> {
+        Self::require_valid_issuer_address(&issuer_address)?;
+        let protocol_config =
+            Self::get_protocol_config(env.clone()).map_err(|_| ProofError::ProofNotFound)?;
+        let issuer_registry =
+            Self::get_issuer_registry(env.clone()).map_err(|_| ProofError::ProofNotFound)?;
+        if issuer_address == env.current_contract_address()
+            || issuer_address == protocol_config
+            || issuer_address == issuer_registry
+        {
+            return Err(ProofError::InvalidAddress);
+        }
         Self::require_auth(&issuer_address);
 
         if schema_version == 0 {
@@ -306,6 +319,40 @@ impl ProofRegistryContract {
     }
 
     // ── private helpers ───────────────────────────────────────────────────────
+
+    fn validate_dependency_addresses(
+        env: &Env,
+        issuer_registry: &Address,
+        protocol_config: &Address,
+    ) -> Result<(), ContractError> {
+        if !earnproof_shared::is_valid_principal_address(issuer_registry)
+            || !earnproof_shared::is_valid_principal_address(protocol_config)
+        {
+            return Err(ContractError::InvalidInput);
+        }
+        let current = env.current_contract_address();
+        if issuer_registry == &current
+            || protocol_config == &current
+            || issuer_registry == protocol_config
+        {
+            return Err(ContractError::InvalidInput);
+        }
+        Ok(())
+    }
+
+    fn require_valid_principal(address: &Address) -> Result<(), ContractError> {
+        if !earnproof_shared::is_valid_principal_address(address) {
+            return Err(ContractError::InvalidInput);
+        }
+        Ok(())
+    }
+
+    fn require_valid_issuer_address(address: &Address) -> Result<(), ProofError> {
+        if !earnproof_shared::is_valid_principal_address(address) {
+            return Err(ProofError::InvalidAddress);
+        }
+        Ok(())
+    }
 
     fn set_revoked(env: Env, proof_id_hash: BytesN<32>, by_admin: bool) {
         let key = DataKey::Proof(proof_id_hash.clone());
