@@ -13,31 +13,6 @@ pub const TTL_THRESHOLD_LEDGERS: u32 = 50_000;
 /// Target ledgers for extended TTL after triggering a preemptive extension.
 pub const TTL_EXTEND_TO_LEDGERS: u32 = 500_000;
 
-// ── Numeric Input Bounds ───────────────────────────────────────────────────────
-// These constants define the valid ranges for all numeric inputs across contracts.
-// Every public numeric input must stay within these documented bounds or face
-// explicit rejection with a panic guard.
-
-/// Minimum valid schema version. Schema version 0 is reserved and invalid.
-/// All schema versions must be > 0 to be approved or queried.
-pub const MIN_SCHEMA_VERSION: u32 = 1;
-
-/// Proof expiration timestamp must be strictly greater than the current ledger
-/// timestamp. This ensures proofs always have a future validity window.
-/// The maximum value is constrained by u64::MAX, but operationally should be
-/// reasonable relative to ledger time (e.g., not decades in the future).
-pub const MIN_EXPIRATION_OFFSET_FROM_NOW: u64 = 1;
-
-/// Minimum valid contract version. Contract versions start at 1 and only increase.
-/// Version 0 is reserved as "uninitialized" state.
-pub const MIN_CONTRACT_VERSION: u32 = 1;
-
-/// Maximum valid config version before overflow risk. ConfigVersion is incremented
-/// on each config mutation via bump_config_version(). While u32::MAX is technically
-/// possible, this constant documents the intended operational limit.
-/// If ConfigVersion reaches this value, further mutations will be blocked.
-pub const MAX_CONFIG_VERSION: u32 = u32::MAX - 1;
-
 pub fn is_zero_or_sentinel_address(address: &Address) -> bool {
     let value = address.to_string();
     let sentinel = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";

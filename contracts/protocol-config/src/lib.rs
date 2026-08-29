@@ -1,9 +1,6 @@
 #![no_std]
 
-use earnproof_shared::{
-    MAX_CONFIG_VERSION, MIN_CONTRACT_VERSION, MIN_SCHEMA_VERSION, TTL_EXTEND_TO_LEDGERS,
-    TTL_THRESHOLD_LEDGERS,
-};
+use earnproof_shared::{ContractError, TTL_EXTEND_TO_LEDGERS, TTL_THRESHOLD_LEDGERS};
 use soroban_sdk::{contract, contractevent, contractimpl, contracttype, Address, BytesN, Env};
 
 #[contract]
@@ -84,11 +81,12 @@ pub struct ContractUpgraded {
 
 #[contractimpl]
 impl ProtocolConfigContract {
-    pub fn initialize(env: Env, admin: Address) {
+    pub fn initialize(env: Env, admin: Address) -> Result<(), ContractError> {
         if env.storage().instance().has(&DataKey::Admin) {
-            panic!("already initialized");
+            return Err(ContractError::AlreadyInitialized);
         }
 
+        Self::require_valid_principal(&admin)?;
         Self::require_auth(&admin);
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage().instance().set(&DataKey::Paused, &false);
@@ -100,21 +98,24 @@ impl ProtocolConfigContract {
             .set(&DataKey::ContractVersion, &1_u32);
         Self::extend_instance_ttl(env.clone());
         Initialized { admin }.publish(&env);
+        Ok(())
     }
 
-    pub fn get_admin(env: Env) -> Address {
+    pub fn get_admin(env: Env) -> Result<Address, ContractError> {
         env.storage()
             .instance()
             .get(&DataKey::Admin)
-            .expect("not initialized")
+            .ok_or(ContractError::NotInitialized)
     }
 
-    pub fn set_admin(env: Env, new_admin: Address) {
-        let admin = Self::get_admin(env.clone());
+    pub fn set_admin(env: Env, new_admin: Address) -> Result<(), ContractError> {
+        let admin = Self::get_admin(env.clone())?;
+        Self::require_valid_principal(&new_admin)?;
         Self::require_auth(&admin);
         env.storage().instance().set(&DataKey::Admin, &new_admin);
         Self::bump_config_version(env.clone());
         AdminChanged { new_admin }.publish(&env);
+        Ok(())
     }
 
     pub fn is_paused(env: Env) -> bool {
@@ -124,44 +125,48 @@ impl ProtocolConfigContract {
             .unwrap_or(false)
     }
 
-    pub fn pause(env: Env) {
-        let admin = Self::get_admin(env.clone());
+    pub fn pause(env: Env) -> Result<(), ContractError> {
+        let admin = Self::get_admin(env.clone())?;
         Self::require_auth(&admin);
         env.storage().instance().set(&DataKey::Paused, &true);
         Self::bump_config_version(env.clone());
         Paused { paused: true }.publish(&env);
+        Ok(())
     }
 
-    pub fn unpause(env: Env) {
-        let admin = Self::get_admin(env.clone());
+    pub fn unpause(env: Env) -> Result<(), ContractError> {
+        let admin = Self::get_admin(env.clone())?;
         Self::require_auth(&admin);
         env.storage().instance().set(&DataKey::Paused, &false);
         Self::bump_config_version(env.clone());
         Unpaused { paused: false }.publish(&env);
+        Ok(())
     }
 
-    pub fn approve_schema_version(env: Env, version: u32) {
-        let admin = Self::get_admin(env.clone());
+    pub fn approve_schema_version(env: Env, version: u32) -> Result<(), ContractError> {
+        let admin = Self::get_admin(env.clone())?;
         Self::require_auth(&admin);
-        Self::ensure_nonzero_version(version);
+        Self::ensure_nonzero_version(version)?;
         env.storage()
             .persistent()
             .set(&DataKey::SchemaVersion(version), &true);
         Self::extend_schema_ttl(env.clone(), version);
         Self::bump_config_version(env.clone());
         SchemaApproved { version }.publish(&env);
+        Ok(())
     }
 
-    pub fn deprecate_schema_version(env: Env, version: u32) {
-        let admin = Self::get_admin(env.clone());
+    pub fn deprecate_schema_version(env: Env, version: u32) -> Result<(), ContractError> {
+        let admin = Self::get_admin(env.clone())?;
         Self::require_auth(&admin);
-        Self::ensure_nonzero_version(version);
+        Self::ensure_nonzero_version(version)?;
         env.storage()
             .persistent()
             .set(&DataKey::SchemaVersion(version), &false);
         Self::extend_schema_ttl(env.clone(), version);
         Self::bump_config_version(env.clone());
         SchemaDeprecated { version }.publish(&env);
+        Ok(())
     }
 
     pub fn is_schema_version_approved(env: Env, version: u32) -> bool {
@@ -303,10 +308,18 @@ impl ProtocolConfigContract {
 
     // ── private helpers ──────────────────────────────────────────────────────
 
-    fn ensure_nonzero_version(version: u32) {
-        if version < MIN_SCHEMA_VERSION {
-            panic!("schema version must be >= {}", MIN_SCHEMA_VERSION);
+    fn ensure_nonzero_version(version: u32) -> Result<(), ContractError> {
+        if version == 0 {
+            return Err(ContractError::InvalidInput);
         }
+        Ok(())
+    }
+
+    fn require_valid_principal(address: &Address) -> Result<(), ContractError> {
+        if !earnproof_shared::is_valid_principal_address(address) {
+            return Err(ContractError::InvalidInput);
+        }
+        Ok(())
     }
 
     fn bump_config_version(env: Env) {
@@ -403,10 +416,12 @@ mod test {
     }
 
     #[test]
-    #[should_panic(expected = "schema version must be greater than zero")]
     fn rejects_zero_schema_version() {
         let (_env, client, _admin) = setup();
-        client.approve_schema_version(&0);
+        use earnproof_shared::ContractError;
+
+        let result = client.try_approve_schema_version(&0);
+        assert_eq!(result, Err(Ok(ContractError::InvalidInput)));
     }
 
     #[test]
@@ -424,6 +439,7 @@ mod test {
             );
         });
     }
+}
 
     // ── upgrade governance tests ──────────────────────────────────────────────
 
