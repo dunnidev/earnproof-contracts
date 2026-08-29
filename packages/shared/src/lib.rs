@@ -76,3 +76,98 @@ pub struct ProofRecord {
     pub created_at: u64,
     pub revoked_at: u64,
 }
+
+// ── Shared Test Utilities ──────────────────────────────────────────────────────
+// These utilities provide common patterns for initialization adversarial testing
+// across all contracts, ensuring consistent test coverage for re-initialization
+// guards, invalid dependencies, and state/event immutability on failure.
+
+#[cfg(test)]
+pub mod test_utils {
+    use super::*;
+
+    /// Represents the expected state after successful initialization.
+    /// Used to verify that first initialization produces exactly the documented
+    /// state with no partial writes.
+    #[derive(Clone, Debug, Eq, PartialEq)]
+    pub struct InitializedState {
+        /// The admin address that was set during initialization.
+        pub admin: Address,
+        /// True if the contract emitted an event during initialization.
+        pub event_emitted: bool,
+        /// Additional state keys that should be present after initialization.
+        pub expected_keys: Vec<&'static str>,
+    }
+
+    /// Test result for re-initialization attempts.
+    /// Captures whether the attempt failed and whether state remained unchanged.
+    #[derive(Clone, Debug, Eq, PartialEq)]
+    pub struct ReinitAttemptResult {
+        /// True if re-initialization attempt failed (panicked or errored).
+        pub failed: bool,
+        /// True if storage state is byte-for-byte identical before and after attempt.
+        pub state_unchanged: bool,
+        /// True if no new events were emitted during the failed attempt.
+        pub no_new_events: bool,
+    }
+
+    /// Test result for invalid dependency/configuration initialization attempts.
+    /// Captures whether the attempt failed and whether state remained atomic.
+    #[derive(Clone, Debug, Eq, PartialEq)]
+    pub struct InvalidDependencyResult {
+        /// True if initialization attempt failed.
+        pub failed: bool,
+        /// True if storage state is unchanged after the failed attempt.
+        pub atomic_failure: bool,
+        /// True if no events were emitted during the failed attempt.
+        pub no_events: bool,
+    }
+
+    /// Documents the initialization contract's behavior for test purposes.
+    /// This structure is filled out for each contract being tested and serves
+    /// as the specification against which adversarial tests validate behavior.
+    #[derive(Clone, Debug)]
+    pub struct ContractInitSpec {
+        /// Name of the contract being tested.
+        pub contract_name: &'static str,
+        /// True if this contract has a re-initialization guard.
+        pub has_reinit_guard: bool,
+        /// True if this contract emits an event during initialization.
+        pub emits_init_event: bool,
+        /// True if this contract takes dependency addresses as initialization parameters.
+        pub takes_dependencies: bool,
+        /// List of dependency contract names this contract requires (e.g., ["issuer-registry", "protocol-config"]).
+        pub dependency_names: Vec<&'static str>,
+    }
+
+    impl ContractInitSpec {
+        /// Helper to create a spec for a standalone contract with a re-initialization guard.
+        pub fn standalone_with_guard(
+            name: &'static str,
+            emits_event: bool,
+        ) -> Self {
+            ContractInitSpec {
+                contract_name: name,
+                has_reinit_guard: true,
+                emits_init_event: emits_event,
+                takes_dependencies: false,
+                dependency_names: vec![],
+            }
+        }
+
+        /// Helper to create a spec for a contract with dependencies and a re-initialization guard.
+        pub fn with_dependencies_and_guard(
+            name: &'static str,
+            deps: Vec<&'static str>,
+            emits_event: bool,
+        ) -> Self {
+            ContractInitSpec {
+                contract_name: name,
+                has_reinit_guard: true,
+                emits_init_event: emits_event,
+                takes_dependencies: true,
+                dependency_names: deps,
+            }
+        }
+    }
+}
