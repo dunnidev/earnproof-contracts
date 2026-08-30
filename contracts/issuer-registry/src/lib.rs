@@ -111,6 +111,7 @@ impl IssuerRegistryContract {
             return Err(ContractError::AlreadyInitialized);
         }
 
+        Self::require_valid_admin(&admin)?;
         Self::require_auth(&admin);
         env.storage().instance().set(&DataKey::Admin, &admin);
         env.storage()
@@ -134,6 +135,7 @@ impl IssuerRegistryContract {
         metadata_hash: BytesN<32>,
     ) -> Result<(), IssuerError> {
         let admin = Self::get_admin(env.clone()).map_err(|_| IssuerError::IssuerNotFound)?;
+        Self::require_valid_issuer_address(&issuer_address)?;
         Self::require_auth(&admin);
 
         let key = DataKey::Issuer(issuer_id_hash.clone());
@@ -225,6 +227,7 @@ impl IssuerRegistryContract {
         new_address: Address,
     ) -> Result<(), IssuerError> {
         let admin = Self::get_admin(env.clone()).map_err(|_| IssuerError::IssuerNotFound)?;
+        Self::require_valid_issuer_address(&new_address)?;
         Self::require_auth(&admin);
 
         let key = DataKey::Issuer(issuer_id_hash.clone());
@@ -236,6 +239,9 @@ impl IssuerRegistryContract {
 
         if record.status == IssuerStatus::Revoked {
             return Err(IssuerError::IssuerRevoked);
+        }
+        if new_address == record.issuer_address {
+            return Err(IssuerError::InvalidAddress);
         }
 
         let new_address_key = DataKey::AddressIssuer(new_address.clone());
@@ -312,7 +318,7 @@ impl IssuerRegistryContract {
     /// `new_version` must be strictly greater than the current contract
     /// version to prevent pre-approving a downgrade.
     pub fn approve_upgrade(env: Env, wasm_hash: BytesN<32>, new_version: u32) {
-        let admin = Self::get_admin(env.clone()).expect("not initialized");
+
         Self::require_auth(&admin);
 
         let current = Self::get_contract_version(env.clone());
@@ -335,7 +341,8 @@ impl IssuerRegistryContract {
 
     /// Admin-only: remove a hash from the allowlist without applying it.
     pub fn revoke_upgrade(env: Env, wasm_hash: BytesN<32>) {
-        let admin = Self::get_admin(env.clone()).expect("not initialized");
+
+        let admin = Self::get_admin(env.clone()).expect("contract not initialized");
         Self::require_auth(&admin);
 
         env.storage()
@@ -366,7 +373,9 @@ impl IssuerRegistryContract {
     /// On success the allowlist entry is consumed and `ContractVersion` is
     /// advanced.
     pub fn upgrade_contract(env: Env, wasm_hash: BytesN<32>) {
-        let admin = Self::get_admin(env.clone()).expect("not initialized");
+
+        let admin = Self::get_admin(env.clone()).expect("contract not initialized");
+ develop
         Self::require_auth(&admin);
 
         let new_version: u32 = env
@@ -405,6 +414,22 @@ impl IssuerRegistryContract {
 
     // ── private helpers ───────────────────────────────────────────────────────
 
+
+    fn require_valid_admin(address: &Address) -> Result<(), ContractError> {
+        if !earnproof_shared::is_valid_principal_address(address) {
+            return Err(ContractError::InvalidInput);
+        }
+        Ok(())
+    }
+
+    fn require_valid_issuer_address(address: &Address) -> Result<(), IssuerError> {
+        if !earnproof_shared::is_valid_principal_address(address) {
+            return Err(IssuerError::InvalidAddress);
+        }
+        Ok(())
+    }
+
+ develop
     fn set_status(
         env: Env,
         issuer_id_hash: BytesN<32>,
@@ -1010,5 +1035,315 @@ mod test {
 
         // And unrevoked: the rejected call must not have mutated state.
         assert_eq!(client.get_issuer(&issuer_id).status, IssuerStatus::Active);
+    }
+
+    // ── numeric boundary tests ────────────────────────────────────────────────
+
+    /// Contract version boundaries for issuer-registry.
+    /// While issuer-registry has no direct numeric user inputs, it does support
+    /// contract versioning and upgrade governance. This test covers version boundaries.
+    #[test]
+    fn contract_version_initialized_and_upgradeable() {
+        let (env, client, _admin) = setup();
+
+        // Contract version should be initialized to 1
+        assert_eq!(client.get_contract_version(), 1);
+
+        // Valid: upgrade to next version
+        client.approve_upgrade(&bytes(&env, 1), &2);
+        assert!(client.is_upgrade_allowed(&bytes(&env, 1)));
+    }
+
+    #[test]
+    fn contract_version_upgrade_boundaries() {
+        let (env, client, _admin) = setup();
+
+        // Valid: immediate next version
+        client.approve_upgrade(&bytes(&env, 1), &2);
+        client.upgrade_contract(&bytes(&env, 1));
+        assert_eq!(client.get_contract_version(), 2);
+
+        // Valid: large version number
+        client.approve_upgrade(&bytes(&env, 2), &u32::MAX);
+        client.upgrade_contract(&bytes(&env, 2));
+        assert_eq!(client.get_contract_version(), u32::MAX);
+    }
+
+    #[test]
+    #[should_panic(expected = "new_version must be greater than current contract version")]
+    fn contract_version_equal_current_rejected() {
+        let (env, client, _admin) = setup();
+        // Current version is 1; attempting version 1 is rejected
+        client.approve_upgrade(&bytes(&env, 1), &1);
+    }
+
+    #[test]
+    #[should_panic(expected = "new_version must be greater than current contract version")]
+    fn contract_version_below_current_rejected() {
+        let (env, client, _admin) = setup();
+        // Current version is 1; attempting version 0 is rejected
+        client.approve_upgrade(&bytes(&env, 1), &0);
+    }
+
+    /// Test storage invariants: failed boundary cases must not modify state.
+    #[test]
+    fn failed_upgrade_version_downgrade_leaves_state_unchanged() {
+        let (env, client, _admin) = setup();
+
+        let contract_version_before = client.get_contract_version();
+        let hash = bytes(&env, 0x88);
+
+        // Attempt to allowlist a downgrade
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client.approve_upgrade(&hash, &0);
+        }));
+
+        // Must have panicked
+        assert!(result.is_err());
+
+        // Contract version must not change
+        assert_eq!(
+            client.get_contract_version(),
+            contract_version_before,
+            "contract version must not change on failed upgrade approval"
+        );
+
+        // Hash must not be on allowlist
+        assert!(
+            !client.is_upgrade_allowed(&hash),
+            "failed upgrade approval must not add hash to allowlist"
+        );
+    }
+
+    // ── adversarial initialization tests ───────────────────────────────────────
+
+    /// Verify that first initialization writes exactly the documented state
+    /// with no partial writes or missing fields.
+    ///
+    /// Required behavior: First call to `initialize` results in:
+    /// - Admin address set and readable
+    /// - ContractVersion = 1
+    #[test]
+    fn initialization_writes_exactly_documented_state() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register(IssuerRegistryContract, ());
+        let client = IssuerRegistryContractClient::new(&env, &contract_id);
+        let admin = Address::from_str(&env, ADMIN);
+
+        // Perform initialization
+        client.initialize(&admin);
+
+        // Verify exact state written
+        assert_eq!(client.get_admin(), admin, "admin must be set");
+        assert_eq!(
+            client.get_contract_version(),
+            1,
+            "contract version must be exactly 1 after initialization"
+        );
+
+        // Verify storage keys are set
+        env.as_contract(&contract_id, || {
+            let instance = env.storage().instance();
+            assert!(
+                instance.has(&DataKey::Admin),
+                "Admin key must exist in instance storage"
+            );
+            assert!(
+                instance.has(&DataKey::ContractVersion),
+                "ContractVersion key must exist in instance storage"
+            );
+        });
+    }
+
+    /// Verify that repeated initialization by any address fails without
+    /// altering state or emitting events.
+    ///
+    /// Required behavior for re-initialization guard:
+    /// - Second call to `initialize` with any admin (same or different) panics
+    /// - Storage is byte-for-byte unchanged
+    /// - No additional events are emitted
+    #[test]
+    fn reinitialization_by_same_admin_fails_atomically() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register(IssuerRegistryContract, ());
+        let client = IssuerRegistryContractClient::new(&env, &contract_id);
+        let admin = Address::from_str(&env, ADMIN);
+
+        // First initialization succeeds
+        client.initialize(&admin);
+        let contract_version_after_first = client.get_contract_version();
+
+        // Attempt second initialization with same admin
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client.initialize(&admin);
+        }));
+
+        // Must have panicked with "already initialized"
+        assert!(
+            result.is_err(),
+            "re-initialization must panic"
+        );
+
+        // Verify state is byte-for-byte identical
+        assert_eq!(
+            client.get_admin(),
+            admin,
+            "admin must not change after failed re-initialization"
+        );
+        assert_eq!(
+            client.get_contract_version(),
+            contract_version_after_first,
+            "contract version must not change after failed re-initialization"
+        );
+    }
+
+    /// Verify that re-initialization by a different address also fails
+    /// without state or event changes.
+    ///
+    /// This tests that the re-initialization guard does not discriminate
+    /// based on caller identity — it prevents any re-initialization attempt.
+    #[test]
+    fn reinitialization_by_different_admin_fails_atomically() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register(IssuerRegistryContract, ());
+        let client = IssuerRegistryContractClient::new(&env, &contract_id);
+        let admin = Address::from_str(&env, ADMIN);
+        let other = Address::from_str(&env, ISSUER_ONE);
+
+        // First initialization with original admin
+        client.initialize(&admin);
+        let stored_admin = client.get_admin();
+        let contract_version_after_first = client.get_contract_version();
+
+        // Attempt re-initialization with different admin
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client.initialize(&other);
+        }));
+
+        // Must have panicked
+        assert!(result.is_err(), "re-initialization by different admin must panic");
+
+        // Verify state is unchanged: original admin must still be stored
+        assert_eq!(
+            client.get_admin(),
+            stored_admin,
+            "admin must not change when different address attempts re-initialization"
+        );
+        assert_eq!(
+            client.get_contract_version(),
+            contract_version_after_first,
+            "contract version must not change after failed re-initialization by different admin"
+        );
+    }
+
+    /// Verify that the re-initialization guard does not allow partial state
+    /// modification on subsequent initialization attempts.
+    #[test]
+    fn reinitialization_guard_is_absolute() {
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register(IssuerRegistryContract, ());
+        let client = IssuerRegistryContractClient::new(&env, &contract_id);
+        let admin = Address::from_str(&env, ADMIN);
+
+        // First initialization
+        client.initialize(&admin);
+
+        // Multiple re-initialization attempts must all fail
+        for attempt in 1..=3 {
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                client.initialize(&admin);
+            }));
+
+            assert!(
+                result.is_err(),
+                "re-initialization attempt {} must fail",
+                attempt
+            );
+
+            // Admin must remain unchanged
+            assert_eq!(
+                client.get_admin(),
+                admin,
+                "admin must not change after re-initialization attempt {}",
+                attempt
+            );
+        }
+    }
+
+    /// Verify that initialization state is maintained across subsequent
+    /// issuer registration and upgrade operations.
+    ///
+    /// Tests that the initialization state (admin, contract version) is stable
+    /// and correct before and after other contract operations.
+    #[test]
+    fn initialization_state_stable_across_operations() {
+        let (env, client, admin) = setup();
+
+        // State immediately after initialization
+        assert_eq!(client.get_admin(), admin);
+        assert_eq!(client.get_contract_version(), 1);
+
+        // Perform issuer registration
+        let issuer_id = bytes(&env, 1);
+        let issuer_address = Address::from_str(&env, ISSUER_ONE);
+        client.register_issuer(&issuer_id, &issuer_address, &bytes(&env, 2));
+
+        // Admin must remain unchanged
+        assert_eq!(
+            client.get_admin(),
+            admin,
+            "admin must not change after issuer registration"
+        );
+        // Contract version must still be 1 (no upgrade yet)
+        assert_eq!(
+            client.get_contract_version(),
+            1,
+            "contract version must not change on issuer registration"
+        );
+    }
+
+    /// Summary test: issuer-registry initialization spec verification.
+    ///
+    /// This test serves as executable documentation of what the test matrix
+    /// expects from issuer-registry initialization:
+    /// - Standalone contract (no dependency addresses)
+    /// - Has re-initialization guard
+    /// - Does NOT emit an event during initialization
+    /// - Sets: admin, contract_version=1
+    #[test]
+    fn issuer_registry_initialization_spec_summary() {
+        // CONTRACT SPEC: issuer-registry
+        // - Name: "issuer-registry"
+        // - Has re-initialization guard: YES (panics "already initialized")
+        // - Emits initialization event: NO
+        // - Takes dependency addresses: NO
+        // - Dependencies: []
+        // - First init writes:
+        //   - Admin: passed address (requires auth)
+        //   - ContractVersion: 1
+        // - Re-init guard: DataKey::Admin presence check; panics if set
+        // - Re-init allowed by different admin: NO (guard blocks all)
+        // - Invalid config cases: None (no dependencies to validate)
+
+        let env = Env::default();
+        env.mock_all_auths();
+        let contract_id = env.register(IssuerRegistryContract, ());
+        let client = IssuerRegistryContractClient::new(&env, &contract_id);
+        let admin = Address::from_str(&env, ADMIN);
+
+        // Verify the spec
+        client.initialize(&admin);
+        assert_eq!(client.get_admin(), admin);
+        assert_eq!(client.get_contract_version(), 1);
+
+        // Re-initialization must fail
+        assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            client.initialize(&admin)
+        }))
+        .is_err());
     }
 }

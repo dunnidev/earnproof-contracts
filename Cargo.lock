@@ -3,6 +3,17 @@
 version = 4
 
 [[package]]
+name = "address-validation-tests"
+version = "0.1.0"
+dependencies = [
+ "earnproof-shared",
+ "issuer-registry",
+ "proof-registry",
+ "protocol-config",
+ "soroban-sdk",
+]
+
+[[package]]
 name = "ahash"
 version = "0.8.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -740,7 +751,12 @@ dependencies = [
 name = "encoding-vector-tests"
 version = "0.1.0"
 dependencies = [
+ "earnproof-shared",
+ "issuer-registry",
+ "proof-registry",
+ "protocol-config",
  "sha2",
+ "soroban-sdk",
 ]
 
 [[package]]
