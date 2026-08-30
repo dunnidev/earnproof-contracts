@@ -1598,4 +1598,3 @@ mod test {
         assert!(!pc_client.is_paused());
     }
 }
-}
