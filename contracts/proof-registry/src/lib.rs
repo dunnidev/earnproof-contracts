@@ -4,7 +4,9 @@ use earnproof_shared::{
     ContractError, ProofError, ProofRecord, ProofStatus, TTL_EXTEND_TO_LEDGERS,
     TTL_THRESHOLD_LEDGERS,
 };
-use soroban_sdk::{contract, contractclient, contractimpl, contracttype, Address, BytesN, Env};
+use soroban_sdk::{
+    contract, contractclient, contractevent, contractimpl, contracttype, Address, BytesN, Env,
+};
 
 #[contractclient(name = "ProtocolConfigContractClient")]
 pub trait ProtocolConfigInterface {
@@ -229,7 +231,7 @@ impl ProofRegistryContract {
     /// `new_version` must be strictly greater than the current contract
     /// version to prevent pre-approving a downgrade.
     pub fn approve_upgrade(env: Env, wasm_hash: BytesN<32>, new_version: u32) {
-        let admin = Self::get_admin(env.clone());
+        let admin = Self::get_admin(env.clone()).expect("contract not initialized");
         Self::require_auth(&admin);
 
         let current = Self::get_contract_version(env.clone());
@@ -252,7 +254,7 @@ impl ProofRegistryContract {
 
     /// Admin-only: remove a hash from the allowlist without applying it.
     pub fn revoke_upgrade(env: Env, wasm_hash: BytesN<32>) {
-        let admin = Self::get_admin(env.clone());
+        let admin = Self::get_admin(env.clone()).expect("contract not initialized");
         Self::require_auth(&admin);
 
         env.storage()
@@ -283,7 +285,7 @@ impl ProofRegistryContract {
     /// On success the allowlist entry is consumed and `ContractVersion` is
     /// advanced.
     pub fn upgrade_contract(env: Env, wasm_hash: BytesN<32>) {
-        let admin = Self::get_admin(env.clone());
+        let admin = Self::get_admin(env.clone()).expect("contract not initialized");
         Self::require_auth(&admin);
 
         let new_version: u32 = env
@@ -354,7 +356,7 @@ impl ProofRegistryContract {
         Ok(())
     }
 
-    fn set_revoked(env: Env, proof_id_hash: BytesN<32>, by_admin: bool) {
+    fn set_revoked(env: Env, proof_id_hash: BytesN<32>, by_admin: bool) -> Result<(), ProofError> {
         let key = DataKey::Proof(proof_id_hash.clone());
         let mut record: ProofRecord = env
             .storage()
