@@ -213,6 +213,7 @@ impl ProtocolConfigContract {
 
         let admin = Self::get_admin(env.clone()).expect("contract not initialized");
 
+ develop
         Self::require_auth(&admin);
 
         let current = Self::get_contract_version(env.clone());
@@ -236,6 +237,7 @@ impl ProtocolConfigContract {
     /// Admin-only: remove a previously allowlisted WASM hash without applying
     /// it.  Safe to call even if the hash was never allowlisted.
     pub fn revoke_upgrade(env: Env, wasm_hash: BytesN<32>) {
+
         let admin = Self::get_admin(env.clone()).expect("contract not initialized");
  develop
         Self::require_auth(&admin);
