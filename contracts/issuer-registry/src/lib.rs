@@ -303,22 +303,6 @@ impl IssuerRegistryContract {
         }
     }
 
-    pub fn get_issuer_by_address(env: Env, issuer_address: Address) -> IssuerRecord {
-        let issuer_id_hash: BytesN<32> = env
-            .storage()
-            .persistent()
-            .get(&DataKey::AddressIssuer(issuer_address.clone()))
-            .expect("issuer address not found");
-
-        let record = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Issuer(issuer_id_hash))
-            .expect("issuer not found");
-        Self::extend_address_ttl(env, issuer_address);
-        record
-    }
-
     // ── upgrade governance ────────────────────────────────────────────────────
 
     /// Returns the stored monotonic contract version.  Starts at 1.
