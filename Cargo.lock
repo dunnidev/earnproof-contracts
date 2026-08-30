@@ -751,7 +751,12 @@ dependencies = [
 name = "encoding-vector-tests"
 version = "0.1.0"
 dependencies = [
+ "earnproof-shared",
+ "issuer-registry",
+ "proof-registry",
+ "protocol-config",
  "sha2",
+ "soroban-sdk",
 ]
 
 [[package]]
