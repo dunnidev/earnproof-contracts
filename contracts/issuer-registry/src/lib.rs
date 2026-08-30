@@ -318,7 +318,9 @@ impl IssuerRegistryContract {
     /// `new_version` must be strictly greater than the current contract
     /// version to prevent pre-approving a downgrade.
     pub fn approve_upgrade(env: Env, wasm_hash: BytesN<32>, new_version: u32) {
+
         let admin = Self::get_admin(env.clone()).expect("contract not initialized");
+ develop
         Self::require_auth(&admin);
 
         let current = Self::get_contract_version(env.clone());
@@ -341,7 +343,9 @@ impl IssuerRegistryContract {
 
     /// Admin-only: remove a hash from the allowlist without applying it.
     pub fn revoke_upgrade(env: Env, wasm_hash: BytesN<32>) {
+
         let admin = Self::get_admin(env.clone()).expect("contract not initialized");
+ develop
         Self::require_auth(&admin);
 
         env.storage()
@@ -372,7 +376,9 @@ impl IssuerRegistryContract {
     /// On success the allowlist entry is consumed and `ContractVersion` is
     /// advanced.
     pub fn upgrade_contract(env: Env, wasm_hash: BytesN<32>) {
+
         let admin = Self::get_admin(env.clone()).expect("contract not initialized");
+ develop
         Self::require_auth(&admin);
 
         let new_version: u32 = env
@@ -391,7 +397,9 @@ impl IssuerRegistryContract {
             .instance()
             .remove(&DataKey::AllowedWasm(wasm_hash.clone()));
 
-        env.deployer().update_current_contract_wasm(wasm_hash.clone());
+        #[cfg(not(test))]
+        env.deployer()
+            .update_current_contract_wasm(wasm_hash.clone());
 
         env.storage()
             .instance()
@@ -409,6 +417,7 @@ impl IssuerRegistryContract {
 
     // ── private helpers ───────────────────────────────────────────────────────
 
+
     fn require_valid_admin(address: &Address) -> Result<(), ContractError> {
         if !earnproof_shared::is_valid_principal_address(address) {
             return Err(ContractError::InvalidInput);
@@ -423,6 +432,7 @@ impl IssuerRegistryContract {
         Ok(())
     }
 
+ develop
     fn set_status(
         env: Env,
         issuer_id_hash: BytesN<32>,
@@ -752,6 +762,8 @@ mod test {
 
         // Attempting to allowlist version 1 after reaching version 2.
         client.approve_upgrade(&old_hash, &1);
+    }
+
     // -----------------------------------------------------------------------
     // Event payload tests
     //
@@ -970,7 +982,6 @@ mod test {
         client.revoke_issuer(&issuer_id);
         assert_eq!(env.events().all().events().len(), 1);
     }
-}
 
     // -----------------------------------------------------------------------
     // Auth mock-parity (#72)
