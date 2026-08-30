@@ -139,7 +139,7 @@ Admin authorization is required for writes.
 
 ### Issuer Registry Events
 
-The issuer-registry contract currently emits no typed events. State changes are stored on-chain via `IssuerRecord` updates but are not announced via Soroban event topics. Future contract versions are expected to add events for issuer lifecycle transitions. See [tests/fixtures/events/issuer-registry/](../tests/fixtures/events/issuer-registry/).
+Issuer-registry mutations emit typed Soroban events (delivered by #2). See [tests/fixtures/events/issuer-registry/](../tests/fixtures/events/issuer-registry/) for the fixture payloads.
 Every successful mutation emits exactly one typed event. Failed, unauthorized, or duplicate operations emit no success event.
 
 All payloads contain only public hashes, addresses, status, and timestamps. No personal data, salary, or payment amounts are included.

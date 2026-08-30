@@ -187,3 +187,139 @@ contract method they wrap.
   `tests/encoding/`, `tests/event-fixtures/` — one workspace member per
   concern, each independently coverage-measured but not separately gated
   (they exercise the same three contracts the gates above already cover).
+
+## Fuzz testing
+
+Fuzz testing exercises the robustness of type deserialization and input validation
+by feeding arbitrary malformed input to the codec and entry points. The goal is
+to ensure that malformed input is always rejected gracefully with a proper error
+code, never causing a panic, trap, or undefined behavior.
+
+### Fuzz targets
+
+The `fuzz/` crate defines six fuzz targets that test shared types and entry point
+parameter validation:
+
+| Target | Covers |
+| --- | --- |
+| `fuzz_proof_record_decode` | ProofRecord XDR deserialization, field boundary validation (BytesN<32>, u32, u64 fields) |
+| `fuzz_issuer_record_decode` | IssuerRecord XDR deserialization, field boundaries |
+| `fuzz_issuer_status_decode` | IssuerStatus enum discriminant (0=Active, 1=Suspended, 2=Revoked); invalid discriminants should be rejected |
+| `fuzz_proof_status_decode` | ProofStatus enum discriminant (0=Active, 1=Revoked); invalid discriminants should be rejected |
+| `fuzz_address_validation` | `is_valid_principal_address()` and `is_zero_or_sentinel_address()` from `packages/shared/`; tests 56-char length, character set [A-Z2-7], sentinel rejection |
+| `fuzz_entry_point_register_proof` | `register_proof()` entry point parameter validation: schema_version > 0, expires_at > now, Address format |
+
+Each target:
+- **Never panics or traps** on arbitrary input
+- **Accepts valid input** according to documented invariants
+- **Rejects invalid input** with deterministic error codes, not undefined behavior
+- **Verifies no partial state mutations** occur on rejection (where observable)
+
+### Quick smoke test (CI)
+
+The CI `fuzz` job runs each target for 30 seconds with libFuzzer's default settings:
+
+```bash
+cargo fuzz run <target> -- -max_total_time=30
+```
+
+This catches obvious crashes or hangs with a recent corpus.
+
+### Local fuzzing: quick run
+
+Test a single target locally with the same 30-second smoke profile:
+
+```bash
+# Requires nightly toolchain and cargo-fuzz installed
+rustup toolchain install nightly
+cargo +nightly install cargo-fuzz
+
+cd fuzz
+cargo +nightly fuzz run fuzz_proof_record_decode -- -max_total_time=30
+```
+
+### Local fuzzing: deep run
+
+To run a deeper/longer fuzz campaign that explores more of the input space:
+
+```bash
+# Run for 1 hour (3600 seconds), generating new inputs
+cargo +nightly fuzz run fuzz_proof_record_decode -- -max_total_time=3600
+
+# Or run with a specific number of iterations
+cargo +nightly fuzz run fuzz_proof_record_decode -- -runs=100000
+```
+
+### Corpus and seeds
+
+Each target has a seed corpus under `fuzz/corpus/<target_name>/`. Seed files
+document:
+- **Valid minimal cases** — smallest inputs that should be accepted
+- **Boundary cases** — edge values (e.g., schema_version=0, expires_at=now)
+- **Malformed cases** — inputs too short, invalid discriminants, wrong character sets
+
+Seeds are checked into git to ensure reproducibility across CI runs and machines.
+
+**To add a new seed** after fixing a discovered bug:
+
+1. Locate the failing input in `fuzz/corpus/<target>/crash-*` or `fuzz/corpus/<target>/leak-*`
+2. Minimize it with `cargo +nightly fuzz cmin <target>` (creates a smaller reproducer)
+3. Rename the minimized input to a descriptive name (e.g., `boundary_schema_zero`) and commit it
+
+### Reproduction and minimization
+
+If the fuzz job finds a crash:
+
+1. **Reproduce locally:**
+   ```bash
+   cargo +nightly fuzz run fuzz_proof_record_decode -- path/to/crash-file
+   ```
+
+2. **Minimize to the smallest failing input:**
+   ```bash
+   cargo +nightly fuzz cmin fuzz_proof_record_decode
+   ```
+   This creates `fuzz/artifacts/fuzz_proof_record_decode/` with minimized inputs.
+
+3. **Inspect the crash:**
+   Run under a debugger or add instrumentation to `fuzz/fuzz_targets/fuzz_proof_record_decode.rs`
+   to understand what input triggered the failure.
+
+4. **Add a regression test:**
+   - If the crash reveals a bug in production code (`packages/shared/` or `contracts/*/src/lib.rs`),
+     file an issue and fix the bug (ensure the fix is a proper error, not a silent ignore).
+   - Create a seed corpus entry under `fuzz/corpus/<target>/` to prevent regression.
+
+### Sanitizers and instrumentation
+
+cargo-fuzz runs with Address Sanitizer (ASan) by default on nightly, which catches
+memory unsafety. To disable sanitizers (if they cause false positives):
+
+```bash
+LLVM_PROFILE_FILE=/tmp/ignored cargo +nightly fuzz run fuzz_proof_record_decode \
+  -- -max_total_time=30
+```
+
+### Corpus generation on CI
+
+The CI fuzz job (`fuzz` in `.github/workflows/ci.yml`) runs as part of every PR.
+If it discovers new interesting inputs (crashers or coverage improvements), they
+are stored in `fuzz/corpus/` but **not automatically committed**. After investigating
+and adding to the seed corpus manually, commit the regression cases so they stay
+in CI.
+
+### Constraints and design notes
+
+- **No contract state corruption:** Fuzz targets for shared types (ProofRecord, IssuerStatus)
+  test deserialization in isolation; they do not test state mutations. Entry-point
+  targets (fuzz_entry_point_register_proof) construct a fresh Env and verify no
+  storage changes occur on invalid input.
+- **No production code changes:** If fuzzing uncovers a panic or undefined behavior
+  in production code, it is a bug to be fixed. The fuzz test itself should not be
+  weakened to make a bad implementation pass.
+- **Bounded time/memory:** Fuzz targets skip inputs > 8KB to prevent memory exhaustion.
+  This is a practical limit for type deserialization and entry-point testing; deeper
+  fuzzing with larger inputs can be run manually if needed.
+- **Deterministic corpus:** Seed files are versioned and deterministic; randomness
+  comes only from libFuzzer's input generation, making results reproducible.
+
