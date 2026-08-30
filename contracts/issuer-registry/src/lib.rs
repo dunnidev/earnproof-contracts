@@ -303,22 +303,6 @@ impl IssuerRegistryContract {
         }
     }
 
-    pub fn get_issuer_by_address(env: Env, issuer_address: Address) -> IssuerRecord {
-        let issuer_id_hash: BytesN<32> = env
-            .storage()
-            .persistent()
-            .get(&DataKey::AddressIssuer(issuer_address.clone()))
-            .expect("issuer address not found");
-
-        let record = env
-            .storage()
-            .persistent()
-            .get(&DataKey::Issuer(issuer_id_hash))
-            .expect("issuer not found");
-        Self::extend_address_ttl(env, issuer_address);
-        record
-    }
-
     // ── upgrade governance ────────────────────────────────────────────────────
 
     /// Returns the stored monotonic contract version.  Starts at 1.
@@ -334,7 +318,7 @@ impl IssuerRegistryContract {
     /// `new_version` must be strictly greater than the current contract
     /// version to prevent pre-approving a downgrade.
     pub fn approve_upgrade(env: Env, wasm_hash: BytesN<32>, new_version: u32) {
-        let admin = Self::get_admin(env.clone());
+        let admin = Self::get_admin(env.clone()).expect("contract not initialized");
         Self::require_auth(&admin);
 
         let current = Self::get_contract_version(env.clone());
@@ -357,7 +341,7 @@ impl IssuerRegistryContract {
 
     /// Admin-only: remove a hash from the allowlist without applying it.
     pub fn revoke_upgrade(env: Env, wasm_hash: BytesN<32>) {
-        let admin = Self::get_admin(env.clone());
+        let admin = Self::get_admin(env.clone()).expect("contract not initialized");
         Self::require_auth(&admin);
 
         env.storage()
@@ -388,7 +372,7 @@ impl IssuerRegistryContract {
     /// On success the allowlist entry is consumed and `ContractVersion` is
     /// advanced.
     pub fn upgrade_contract(env: Env, wasm_hash: BytesN<32>) {
-        let admin = Self::get_admin(env.clone());
+        let admin = Self::get_admin(env.clone()).expect("contract not initialized");
         Self::require_auth(&admin);
 
         let new_version: u32 = env

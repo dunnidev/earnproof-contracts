@@ -1,6 +1,12 @@
 //! Golden backend encoding vectors consumed without a JSON runtime dependency.
 
 #[cfg(test)]
+extern crate std;
+
+#[cfg(test)]
+mod contract_compatibility;
+
+#[cfg(test)]
 mod tests {
     use sha2::{Digest, Sha256};
 

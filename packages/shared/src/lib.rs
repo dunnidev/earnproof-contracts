@@ -13,23 +13,53 @@ pub const TTL_THRESHOLD_LEDGERS: u32 = 50_000;
 /// Target ledgers for extended TTL after triggering a preemptive extension.
 pub const TTL_EXTEND_TO_LEDGERS: u32 = 500_000;
 
-pub fn is_zero_or_sentinel_address(address: &Address) -> bool {
+// A Stellar strkey address (G...) is always exactly 56 ASCII characters.
+// soroban_sdk::String has no .chars() (unlike std::string::String, and
+// unlike Symbol, this isn't even gated off-WASM only - it simply doesn't
+// exist on any target in this SDK version) and doesn't implement
+// PartialEq<&str>, only String == String - copy_into_slice() into a fixed
+// buffer and comparing raw ASCII bytes is the actual supported way to
+// inspect a soroban_sdk::String's contents on every target.
+const STRKEY_ADDRESS_LEN: usize = 56;
+
+fn address_bytes(address: &Address) -> [u8; STRKEY_ADDRESS_LEN] {
     let value = address.to_string();
-    let sentinel = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-    value == sentinel || value.len() == 56 && value.chars().all(|character| character == 'A')
+    let mut buf = [0u8; STRKEY_ADDRESS_LEN];
+    if value.len() as usize == STRKEY_ADDRESS_LEN {
+        value.copy_into_slice(&mut buf);
+    }
+    buf
+}
+
+// The strkey encoding of an all-zero (32-byte) ed25519 public key: version
+// byte 'G' + 32 zero payload bytes + a real CRC16/XMODEM checksum over
+// those 33 bytes, base32-encoded. The checksum is NOT itself all zero bits
+// (a correct checksum over an all-zero payload is not the all-zero
+// checksum), so this string does not end in all 'A's — comparing the
+// full string against this one known-correct value is the only way to
+// recognize it; a pattern check like "G followed by all A's" would (and
+// previously did) silently never match a real, correctly-checksummed
+// all-zero-payload address at all.
+const ZERO_PAYLOAD_STRKEY: &[u8; STRKEY_ADDRESS_LEN] =
+    b"GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
+
+pub fn is_zero_or_sentinel_address(address: &Address) -> bool {
+    let bytes = address_bytes(address);
+    &bytes == ZERO_PAYLOAD_STRKEY
 }
 
 pub fn is_valid_principal_address(address: &Address) -> bool {
     let value = address.to_string();
-    if value.is_empty() || value.len() != 56 {
+    if value.is_empty() || value.len() as usize != STRKEY_ADDRESS_LEN {
         return false;
     }
-    if value.chars().all(|character| character == 'A') || is_zero_or_sentinel_address(address) {
+    let bytes = address_bytes(address);
+    if is_zero_or_sentinel_address(address) {
         return false;
     }
-    value
-        .chars()
-        .all(|character| matches!(character, 'A'..='Z' | '2'..='7'))
+    bytes
+        .iter()
+        .all(|&byte| matches!(byte, b'A'..=b'Z' | b'2'..=b'7'))
 }
 
 // ---------------------------------------------------------------------------
