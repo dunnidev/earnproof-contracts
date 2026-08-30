@@ -2,6 +2,17 @@
   "contract_version": "0.1.0",
   "entries": [
     {
+      "authorization": "current admin",
+      "contract": "issuer-registry",
+      "event_effect": "none unless documented in lifecycle specification",
+      "failure_atomicity": "Soroban invocation rollback",
+      "name": "approve_upgrade",
+      "parameters": "env: Env, wasm_hash: BytesN<32>, new_version: u32",
+      "result": "()",
+      "source": "contracts/issuer-registry/src/lib.rs",
+      "storage_effect": "documented in lifecycle specification"
+    },
+    {
       "authorization": "none",
       "contract": "issuer-registry",
       "event_effect": "none unless documented in lifecycle specification",
@@ -9,6 +20,17 @@
       "name": "get_admin",
       "parameters": "env: Env",
       "result": "Result<Address, ContractError>",
+      "source": "contracts/issuer-registry/src/lib.rs",
+      "storage_effect": "read-only"
+    },
+    {
+      "authorization": "current admin",
+      "contract": "issuer-registry",
+      "event_effect": "none unless documented in lifecycle specification",
+      "failure_atomicity": "Soroban invocation rollback",
+      "name": "get_contract_version",
+      "parameters": "env: Env",
+      "result": "u32",
       "source": "contracts/issuer-registry/src/lib.rs",
       "storage_effect": "read-only"
     },
@@ -72,6 +94,17 @@
       "contract": "issuer-registry",
       "event_effect": "none unless documented in lifecycle specification",
       "failure_atomicity": "Soroban invocation rollback",
+      "name": "is_upgrade_allowed",
+      "parameters": "env: Env, wasm_hash: BytesN<32>",
+      "result": "bool",
+      "source": "contracts/issuer-registry/src/lib.rs",
+      "storage_effect": "read-only"
+    },
+    {
+      "authorization": "current admin",
+      "contract": "issuer-registry",
+      "event_effect": "none unless documented in lifecycle specification",
+      "failure_atomicity": "Soroban invocation rollback",
       "name": "reactivate_issuer",
       "parameters": "env: Env, issuer_id_hash: BytesN<32>",
       "result": "Result<(), IssuerError>",
@@ -97,6 +130,17 @@
       "name": "revoke_issuer",
       "parameters": "env: Env, issuer_id_hash: BytesN<32>",
       "result": "Result<(), IssuerError>",
+      "source": "contracts/issuer-registry/src/lib.rs",
+      "storage_effect": "documented in lifecycle specification"
+    },
+    {
+      "authorization": "current admin",
+      "contract": "issuer-registry",
+      "event_effect": "none unless documented in lifecycle specification",
+      "failure_atomicity": "Soroban invocation rollback",
+      "name": "revoke_upgrade",
+      "parameters": "env: Env, wasm_hash: BytesN<32>",
+      "result": "()",
       "source": "contracts/issuer-registry/src/lib.rs",
       "storage_effect": "documented in lifecycle specification"
     },
@@ -135,12 +179,34 @@
     },
     {
       "authorization": "current admin",
+      "contract": "issuer-registry",
+      "event_effect": "none unless documented in lifecycle specification",
+      "failure_atomicity": "Soroban invocation rollback",
+      "name": "upgrade_contract",
+      "parameters": "env: Env, wasm_hash: BytesN<32>",
+      "result": "()",
+      "source": "contracts/issuer-registry/src/lib.rs",
+      "storage_effect": "documented in lifecycle specification"
+    },
+    {
+      "authorization": "current admin",
       "contract": "proof-registry",
       "event_effect": "none unless documented in lifecycle specification",
       "failure_atomicity": "Soroban invocation rollback",
       "name": "admin_revoke_proof",
       "parameters": "env: Env, proof_id_hash: BytesN<32>",
       "result": "Result<(), ProofError>",
+      "source": "contracts/proof-registry/src/lib.rs",
+      "storage_effect": "documented in lifecycle specification"
+    },
+    {
+      "authorization": "current admin",
+      "contract": "proof-registry",
+      "event_effect": "none unless documented in lifecycle specification",
+      "failure_atomicity": "Soroban invocation rollback",
+      "name": "approve_upgrade",
+      "parameters": "env: Env, wasm_hash: BytesN<32>, new_version: u32",
+      "result": "()",
       "source": "contracts/proof-registry/src/lib.rs",
       "storage_effect": "documented in lifecycle specification"
     },
@@ -152,6 +218,17 @@
       "name": "get_admin",
       "parameters": "env: Env",
       "result": "Result<Address, ContractError>",
+      "source": "contracts/proof-registry/src/lib.rs",
+      "storage_effect": "read-only"
+    },
+    {
+      "authorization": "current admin",
+      "contract": "proof-registry",
+      "event_effect": "none unless documented in lifecycle specification",
+      "failure_atomicity": "Soroban invocation rollback",
+      "name": "get_contract_version",
+      "parameters": "env: Env",
+      "result": "u32",
       "source": "contracts/proof-registry/src/lib.rs",
       "storage_effect": "read-only"
     },
@@ -211,6 +288,17 @@
       "storage_effect": "read-only"
     },
     {
+      "authorization": "current admin",
+      "contract": "proof-registry",
+      "event_effect": "none unless documented in lifecycle specification",
+      "failure_atomicity": "Soroban invocation rollback",
+      "name": "is_upgrade_allowed",
+      "parameters": "env: Env, wasm_hash: BytesN<32>",
+      "result": "bool",
+      "source": "contracts/proof-registry/src/lib.rs",
+      "storage_effect": "read-only"
+    },
+    {
       "authorization": "none",
       "contract": "proof-registry",
       "event_effect": "none unless documented in lifecycle specification",
@@ -245,12 +333,45 @@
     },
     {
       "authorization": "current admin",
+      "contract": "proof-registry",
+      "event_effect": "none unless documented in lifecycle specification",
+      "failure_atomicity": "Soroban invocation rollback",
+      "name": "revoke_upgrade",
+      "parameters": "env: Env, wasm_hash: BytesN<32>",
+      "result": "()",
+      "source": "contracts/proof-registry/src/lib.rs",
+      "storage_effect": "documented in lifecycle specification"
+    },
+    {
+      "authorization": "current admin",
+      "contract": "proof-registry",
+      "event_effect": "none unless documented in lifecycle specification",
+      "failure_atomicity": "Soroban invocation rollback",
+      "name": "upgrade_contract",
+      "parameters": "env: Env, wasm_hash: BytesN<32>",
+      "result": "()",
+      "source": "contracts/proof-registry/src/lib.rs",
+      "storage_effect": "documented in lifecycle specification"
+    },
+    {
+      "authorization": "current admin",
       "contract": "protocol-config",
       "event_effect": "none unless documented in lifecycle specification",
       "failure_atomicity": "Soroban invocation rollback",
       "name": "approve_schema_version",
       "parameters": "env: Env, version: u32",
       "result": "Result<(), ContractError>",
+      "source": "contracts/protocol-config/src/lib.rs",
+      "storage_effect": "documented in lifecycle specification"
+    },
+    {
+      "authorization": "current admin",
+      "contract": "protocol-config",
+      "event_effect": "none unless documented in lifecycle specification",
+      "failure_atomicity": "Soroban invocation rollback",
+      "name": "approve_upgrade",
+      "parameters": "env: Env, wasm_hash: BytesN<32>, new_version: u32",
+      "result": "()",
       "source": "contracts/protocol-config/src/lib.rs",
       "storage_effect": "documented in lifecycle specification"
     },
@@ -282,6 +403,17 @@
       "event_effect": "none unless documented in lifecycle specification",
       "failure_atomicity": "Soroban invocation rollback",
       "name": "get_config_version",
+      "parameters": "env: Env",
+      "result": "u32",
+      "source": "contracts/protocol-config/src/lib.rs",
+      "storage_effect": "read-only"
+    },
+    {
+      "authorization": "current admin",
+      "contract": "protocol-config",
+      "event_effect": "none unless documented in lifecycle specification",
+      "failure_atomicity": "Soroban invocation rollback",
+      "name": "get_contract_version",
       "parameters": "env: Env",
       "result": "u32",
       "source": "contracts/protocol-config/src/lib.rs",
@@ -325,9 +457,31 @@
       "contract": "protocol-config",
       "event_effect": "none unless documented in lifecycle specification",
       "failure_atomicity": "Soroban invocation rollback",
+      "name": "is_upgrade_allowed",
+      "parameters": "env: Env, wasm_hash: BytesN<32>",
+      "result": "bool",
+      "source": "contracts/protocol-config/src/lib.rs",
+      "storage_effect": "read-only"
+    },
+    {
+      "authorization": "current admin",
+      "contract": "protocol-config",
+      "event_effect": "none unless documented in lifecycle specification",
+      "failure_atomicity": "Soroban invocation rollback",
       "name": "pause",
       "parameters": "env: Env",
       "result": "Result<(), ContractError>",
+      "source": "contracts/protocol-config/src/lib.rs",
+      "storage_effect": "documented in lifecycle specification"
+    },
+    {
+      "authorization": "current admin",
+      "contract": "protocol-config",
+      "event_effect": "none unless documented in lifecycle specification",
+      "failure_atomicity": "Soroban invocation rollback",
+      "name": "revoke_upgrade",
+      "parameters": "env: Env, wasm_hash: BytesN<32>",
+      "result": "()",
       "source": "contracts/protocol-config/src/lib.rs",
       "storage_effect": "documented in lifecycle specification"
     },
@@ -352,6 +506,17 @@
       "result": "Result<(), ContractError>",
       "source": "contracts/protocol-config/src/lib.rs",
       "storage_effect": "documented in lifecycle specification"
+    },
+    {
+      "authorization": "current admin",
+      "contract": "protocol-config",
+      "event_effect": "none unless documented in lifecycle specification",
+      "failure_atomicity": "Soroban invocation rollback",
+      "name": "upgrade_contract",
+      "parameters": "env: Env, wasm_hash: BytesN<32>",
+      "result": "()",
+      "source": "contracts/protocol-config/src/lib.rs",
+      "storage_effect": "documented in lifecycle specification"
     }
   ],
   "errors": [
@@ -365,6 +530,7 @@
         "NotFound",
         "InvalidState",
         "InvalidInput",
+        "InvalidAddress",
         "ProtocolPaused"
       ]
     },
@@ -377,7 +543,8 @@
         "IssuerAddressNotFound",
         "IssuerRevoked",
         "IssuerInactive",
-        "InvalidTransition"
+        "InvalidTransition",
+        "InvalidAddress"
       ]
     },
     {
@@ -388,7 +555,8 @@
         "ProofAlreadyRevoked",
         "ProofExpired",
         "InvalidSchemaVersion",
-        "SchemaVersionNotApproved"
+        "SchemaVersionNotApproved",
+        "InvalidAddress"
       ]
     }
   ],
@@ -418,6 +586,30 @@
       "name": "SchemaDeprecated"
     },
     {
+      "contract": "protocol-config",
+      "name": "UpgradeAllowlisted"
+    },
+    {
+      "contract": "protocol-config",
+      "name": "UpgradeRevoked"
+    },
+    {
+      "contract": "protocol-config",
+      "name": "ContractUpgraded"
+    },
+    {
+      "contract": "issuer-registry",
+      "name": "UpgradeAllowlisted"
+    },
+    {
+      "contract": "issuer-registry",
+      "name": "UpgradeRevoked"
+    },
+    {
+      "contract": "issuer-registry",
+      "name": "ContractUpgraded"
+    },
+    {
       "contract": "issuer-registry",
       "name": "IssuerRegistered"
     },
@@ -440,6 +632,18 @@
     {
       "contract": "issuer-registry",
       "name": "IssuerAddressRotated"
+    },
+    {
+      "contract": "proof-registry",
+      "name": "UpgradeAllowlisted"
+    },
+    {
+      "contract": "proof-registry",
+      "name": "UpgradeRevoked"
+    },
+    {
+      "contract": "proof-registry",
+      "name": "ContractUpgraded"
     }
   ],
   "format_version": 1,
