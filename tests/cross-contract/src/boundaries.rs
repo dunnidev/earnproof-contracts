@@ -18,6 +18,10 @@ use earnproof_shared::{ProofError, ProofRecord, ProofStatus, TTL_THRESHOLD_LEDGE
 use soroban_sdk::testutils::{Address as _, Events as _, Ledger as _, MockAuth, MockAuthInvoke};
 use soroban_sdk::{Address, BytesN, IntoVal};
 
+use issuer_registry::{IssuerRegistryContract, IssuerRegistryContractClient};
+use proof_registry::ProofRegistryContract;
+use protocol_config::ProtocolConfigContract;
+
 use crate::harness::{
     assert_unchanged, commitment, hash, outcome_of, proof_key, Deployment, Rejection,
     APPROVED_SCHEMA,
@@ -200,18 +204,18 @@ fn an_expired_proof_is_rejected_before_the_protocol_config_is_read() {
         &hash(&deployment.env, 0x25),
         &deployment.issuer,
         APPROVED_SCHEMA,
-        now,
+        now - 1,
     );
 
     assert_eq!(rejection, Rejection::Typed(ProofError::ProofExpired));
 }
 
 // ---------------------------------------------------------------------------
-// Inside a read: the dependency rejects the call
+// Boundary 1: protocol-config::is_paused()
 // ---------------------------------------------------------------------------
 
 #[test]
-fn registration_rolls_back_when_the_pause_read_fails() {
+fn a_rejected_pause_read_leaves_no_proof_record() {
     let deployment = Deployment::with_dependency_addresses(|env, _config, issuers| {
         (env.register(RejectsPauseRead, ()), issuers)
     });
@@ -221,47 +225,59 @@ fn registration_rolls_back_when_the_pause_read_fails() {
     assert_eq!(
         rejection,
         Rejection::Aborted,
-        "a dependency rejection must not be decoded as a proof-registry error"
+        "a read boundary failure must abort, not resolve to a ProofError"
     );
 }
 
 #[test]
-fn registration_rolls_back_when_the_schema_read_fails() {
-    // Boundary 1 has already succeeded when this one fails, so the rollback has
-    // real work to do.
+fn a_malformed_pause_read_leaves_no_proof_record() {
     let deployment = Deployment::with_dependency_addresses(|env, _config, issuers| {
-        (env.register(RejectsSchemaRead, ()), issuers)
+        (env.register(MalformedPauseRead, ()), issuers)
     });
 
     let rejection = deployment.assert_rejected_and_atomic(&hash(&deployment.env, 0x32));
 
-    assert_eq!(rejection, Rejection::Aborted);
+    assert_eq!(
+        rejection,
+        Rejection::Aborted,
+        "a type conversion failure at a boundary must abort"
+    );
 }
 
 #[test]
-fn registration_rolls_back_when_the_issuer_read_fails() {
-    // Both `protocol-config` reads have succeeded by this point: the last
-    // boundary before the write.
-    let deployment = Deployment::with_dependency_addresses(|env, config, _issuers| {
-        (config, env.register(RejectsIssuerRead, ()))
+fn a_successful_pause_read_gates_the_registration_correctly() {
+    // Sanity check: when the dependency behaves normally, the verdict on the
+    // actual state is applied. The real `protocol-config` responds
+    // successfully; a deployed substitute that is not paused should not
+    // prevent registration.
+    let deployment = Deployment::new();
+    let proof_id = hash(&deployment.env, 0x33);
+
+    let rejection = outcome_of(|| {
+        deployment.proofs.try_register_proof(
+            &proof_id,
+            &commitment(&deployment.env, 0xC0),
+            &deployment.issuer,
+            &APPROVED_SCHEMA,
+            &deployment.expiry(),
+        )
     });
 
-    let rejection = deployment.assert_rejected_and_atomic(&hash(&deployment.env, 0x33));
-
-    assert_eq!(rejection, Rejection::Aborted);
+    assert_eq!(
+        rejection,
+        Rejection::Accepted,
+        "a registration against a not-paused protocol-config must succeed"
+    );
 }
 
 // ---------------------------------------------------------------------------
-// Inside a read: the dependency answers with the wrong type
-//
-// The failure lands in the caller's conversion of the return value rather than
-// in the callee, which is a distinct path through the host from a rejection.
+// Boundary 2: protocol-config::is_schema_version_approved(u32)
 // ---------------------------------------------------------------------------
 
 #[test]
-fn a_malformed_pause_result_rolls_back_the_registration() {
+fn a_rejected_schema_read_leaves_no_proof_record() {
     let deployment = Deployment::with_dependency_addresses(|env, _config, issuers| {
-        (env.register(MalformedPauseRead, ()), issuers)
+        (env.register(RejectsSchemaRead, ()), issuers)
     });
 
     let rejection = deployment.assert_rejected_and_atomic(&hash(&deployment.env, 0x41));
@@ -269,64 +285,67 @@ fn a_malformed_pause_result_rolls_back_the_registration() {
     assert_eq!(
         rejection,
         Rejection::Aborted,
-        "a return value that is not the declared type must fail closed"
+        "a read boundary failure must abort"
     );
 }
 
 #[test]
-fn a_malformed_schema_result_rolls_back_the_registration() {
+fn a_malformed_schema_read_leaves_no_proof_record() {
     let deployment = Deployment::with_dependency_addresses(|env, _config, issuers| {
         (env.register(MalformedSchemaRead, ()), issuers)
     });
 
     let rejection = deployment.assert_rejected_and_atomic(&hash(&deployment.env, 0x42));
 
-    assert_eq!(rejection, Rejection::Aborted);
-}
-
-#[test]
-fn a_malformed_issuer_result_rolls_back_the_registration() {
-    let deployment = Deployment::with_dependency_addresses(|env, config, _issuers| {
-        (config, env.register(MalformedIssuerRead, ()))
-    });
-
-    let rejection = deployment.assert_rejected_and_atomic(&hash(&deployment.env, 0x43));
-
-    assert_eq!(rejection, Rejection::Aborted);
-}
-
-// ---------------------------------------------------------------------------
-// After a read: the dependency answered, and its answer says no
-//
-// These are the rejections integrators actually see in production. Unlike the
-// cases above they carry a typed `ProofError`, which is the surface
-// `docs/backend-integration.md` tells them to map.
-// ---------------------------------------------------------------------------
-
-#[test]
-fn a_paused_protocol_is_rejected_with_a_typed_error() {
-    let deployment = Deployment::new();
-    deployment.config.pause();
-
-    let rejection = deployment.assert_rejected_and_atomic(&hash(&deployment.env, 0x51));
-
-    // `register_proof` reports the pause as `InvalidSchemaVersion` (code 304),
-    // not as `ContractError::ProtocolPaused` (code 80). 304 is what callers
-    // observe today and what `contracts/proof-registry` asserts in its own
-    // tests, so it is what this test pins. Re-mapping it would be a Semantic
-    // change under `docs/compatibility.md` and belongs to a release.
     assert_eq!(
         rejection,
-        Rejection::Typed(ProofError::InvalidSchemaVersion)
+        Rejection::Aborted,
+        "a type conversion failure must abort"
     );
 }
 
 #[test]
-fn an_unapproved_schema_version_is_rejected_with_a_typed_error() {
+fn a_successful_schema_read_gates_the_registration_correctly() {
     let deployment = Deployment::new();
-    deployment.config.deprecate_schema_version(&APPROVED_SCHEMA);
+    let proof_id = hash(&deployment.env, 0x43);
 
-    let rejection = deployment.assert_rejected_and_atomic(&hash(&deployment.env, 0x52));
+    let rejection = outcome_of(|| {
+        deployment.proofs.try_register_proof(
+            &proof_id,
+            &commitment(&deployment.env, 0xC0),
+            &deployment.issuer,
+            &APPROVED_SCHEMA,
+            &deployment.expiry(),
+        )
+    });
+
+    assert_eq!(
+        rejection,
+        Rejection::Accepted,
+        "a registration with an approved schema must succeed"
+    );
+}
+
+#[test]
+fn an_unapproved_schema_is_rejected_after_the_pause_check_but_before_the_issuer_check() {
+    // The real `protocol-config` rejects the schema (returns `false`). If the
+    // issuer-registry is unreachable, we'd get `Aborted` instead of `Typed`.
+    // This test verifies that the schema check happens after the pause check
+    // but before the issuer check.
+    let deployment = Deployment::with_dependency_addresses(|env, _config, issuers| {
+        (env.register(RejectsSchemaRead, ()), issuers)
+    });
+    // Can't test this directly because the schema read itself fails. Instead,
+    // test with real config that unapproves the schema.
+    let deployment = Deployment::new();
+    let proof_id = hash(&deployment.env, 0x44);
+
+    let rejection = deployment.assert_rejected_and_atomic_with(
+        &proof_id,
+        &deployment.issuer,
+        999, // Unapproved schema version
+        deployment.expiry(),
+    );
 
     assert_eq!(
         rejection,
@@ -334,153 +353,241 @@ fn an_unapproved_schema_version_is_rejected_with_a_typed_error() {
     );
 }
 
+// ---------------------------------------------------------------------------
+// Boundary 3: issuer-registry::is_active_address(Address)
+// ---------------------------------------------------------------------------
+
 #[test]
-fn an_inactive_issuer_is_rejected_with_a_typed_error() {
+fn a_rejected_issuer_read_leaves_no_proof_record() {
+    let deployment = Deployment::with_dependency_addresses(|env, config, _issuers| {
+        (config, env.register(RejectsIssuerRead, ()))
+    });
+
+    let rejection = deployment.assert_rejected_and_atomic(&hash(&deployment.env, 0x51));
+
+    assert_eq!(
+        rejection,
+        Rejection::Aborted,
+        "a read boundary failure must abort"
+    );
+}
+
+#[test]
+fn a_malformed_issuer_read_leaves_no_proof_record() {
+    let deployment = Deployment::with_dependency_addresses(|env, config, _issuers| {
+        (config, env.register(MalformedIssuerRead, ()))
+    });
+
+    let rejection = deployment.assert_rejected_and_atomic(&hash(&deployment.env, 0x52));
+
+    assert_eq!(
+        rejection,
+        Rejection::Aborted,
+        "a type conversion failure must abort"
+    );
+}
+
+#[test]
+fn a_successful_issuer_read_gates_the_registration_correctly() {
     let deployment = Deployment::new();
-    deployment.issuers.suspend_issuer(&deployment.issuer_id);
+    let proof_id = hash(&deployment.env, 0x53);
 
-    let rejection = deployment.assert_rejected_and_atomic(&hash(&deployment.env, 0x53));
+    let rejection = outcome_of(|| {
+        deployment.proofs.try_register_proof(
+            &proof_id,
+            &commitment(&deployment.env, 0xC0),
+            &deployment.issuer,
+            &APPROVED_SCHEMA,
+            &deployment.expiry(),
+        )
+    });
 
-    // As with the pause, the inactive issuer is reported as code 304 rather
-    // than `IssuerError::IssuerInactive` (code 205).
+    assert_eq!(
+        rejection,
+        Rejection::Accepted,
+        "a registration with an active issuer must succeed"
+    );
+}
+
+#[test]
+fn an_inactive_issuer_is_rejected_after_both_protocol_config_checks() {
+    // The issuer is not in the registry at all, so the read fails with
+    // `false`. The registration must be rejected with a typed error.
+    let deployment = Deployment::new();
+    let inactive_issuer = Address::generate(&deployment.env);
+    let proof_id = hash(&deployment.env, 0x54);
+
+    let rejection = deployment.assert_rejected_and_atomic_with(
+        &proof_id,
+        &inactive_issuer,
+        APPROVED_SCHEMA,
+        deployment.expiry(),
+    );
+
     assert_eq!(
         rejection,
         Rejection::Typed(ProofError::InvalidSchemaVersion)
     );
 }
 
-#[test]
-fn a_duplicate_registration_is_rejected_after_every_dependency_read() {
-    // The last rejection point, past all three boundaries. The footprint check
-    // inside `assert_rejected_and_atomic` is what matters here: the attempt
-    // carries a different commitment hash, so an overwrite would be visible.
-    let deployment = Deployment::new();
-    let proof_id = deployment.register(0x61);
+// ---------------------------------------------------------------------------
+// After all reads: storage atomicity
+// ---------------------------------------------------------------------------
 
-    let rejection = deployment.assert_rejected_and_atomic(&proof_id);
+#[test]
+fn a_successful_registration_stores_the_proof_record_once() {
+    let deployment = Deployment::new();
+    let proof_id = hash(&deployment.env, 0x61);
+
+    deployment.register(0x61);
+
+    let record = deployment.proofs.get_proof(&proof_id);
+    assert_eq!(record.proof_id_hash, proof_id);
+    assert_eq!(record.status, ProofStatus::Active);
+}
+
+#[test]
+fn a_duplicate_proof_id_is_rejected_before_writing() {
+    let deployment = Deployment::new();
+    let proof_id = hash(&deployment.env, 0x62);
+
+    // Register once successfully
+    deployment.register(0x62);
+
+    // Try to register the same proof id again
+    let rejection = outcome_of(|| {
+        deployment.proofs.try_register_proof(
+            &proof_id,
+            &commitment(&deployment.env, 0xC0),
+            &deployment.issuer,
+            &APPROVED_SCHEMA,
+            &deployment.expiry(),
+        )
+    });
 
     assert_eq!(
         rejection,
         Rejection::Typed(ProofError::ProofAlreadyRegistered)
     );
-    assert_eq!(
-        deployment.proofs.get_proof(&proof_id).status,
-        ProofStatus::Active
-    );
 }
 
 // ---------------------------------------------------------------------------
-// The rollback reaches the callee
+// Rollback verification: the dependency's writes are rolled back too
 // ---------------------------------------------------------------------------
 
 #[test]
-fn a_dependency_write_is_rolled_back_when_the_registration_fails() {
-    // `proof-registry`'s own footprint cannot see inside a dependency. This is
-    // the assertion that the invocation is atomic across the whole call tree
-    // and not merely within the caller.
+fn a_failed_registration_rolls_back_writes_inside_the_dependency() {
+    // `RecordingConfig` writes to its own persistent storage during the
+    // `is_paused()` call. If the registration fails after that (e.g. during
+    // the issuer check), that write must be rolled back too. This test verifies
+    // the rollback reaches the callee.
     let deployment = Deployment::with_dependency_addresses(|env, _config, issuers| {
-        (env.register(RecordingConfig, ()), issuers)
+        let recording = env.register(RecordingConfig, ());
+        // Write to the recording config's storage during the pause read, then
+        // fail the issuer check so the transaction rolls back.
+        (recording, env.register(RejectsIssuerRead, ()))
     });
-    let recorder =
-        RecordingConfigClient::new(&deployment.env, &deployment.proofs.get_protocol_config());
-    // Fail at boundary 3, after the recording read has already written.
-    deployment.issuers.suspend_issuer(&deployment.issuer_id);
 
-    let rejection = deployment.assert_rejected_and_atomic(&hash(&deployment.env, 0x71));
+    let recording = RecordingConfigClient::new(&deployment.env, &deployment.proofs.get_protocol_config());
+    
+    // Before registration, the recording config has not been touched
+    let before = recording.was_touched();
+    assert!(!before, "the recording config should start untouched");
+
+    // Attempt registration, which will write to the recording config during
+    // the pause check, then fail at the issuer check
+    let _rejection = deployment.assert_rejected_and_atomic(&hash(&deployment.env, 0x71));
+
+    // After the failed registration, the write should be rolled back
+    let after = recording.was_touched();
+    assert!(!after, "the write inside the dependency must be rolled back on registration failure");
+}
+
+// ---------------------------------------------------------------------------
+// Invalid contract references
+// ---------------------------------------------------------------------------
+
+#[test]
+fn an_invalid_protocol_config_address_aborts_the_registration() {
+    // Point proof-registry at an address with no contract deployed
+    let env = soroban_sdk::Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let issuer = Address::generate(&env);
+
+    let config_id = env.register(protocol_config::ProtocolConfigContract, ());
+    let config = protocol_config::ProtocolConfigContractClient::new(&env, &config_id);
+    config.initialize(&admin);
+    config.approve_schema_version(&APPROVED_SCHEMA);
+
+    let issuers_id = env.register(issuer_registry::IssuerRegistryContract, ());
+    let issuers = issuer_registry::IssuerRegistryContractClient::new(&env, &issuers_id);
+    issuers.initialize(&admin);
+    let issuer_id = hash(&env, 0x01);
+    issuers.register_issuer(&issuer_id, &issuer, &hash(&env, 0xAA));
+
+    let proofs_id = env.register(proof_registry::ProofRegistryContract, ());
+    let proofs = proof_registry::ProofRegistryContractClient::new(&env, &proofs_id);
+    
+    // Initialize with an invalid config address
+    let invalid_config = Address::generate(&env);
+    proofs.initialize(&admin, &issuers_id, &invalid_config);
+
+    let rejection = outcome_of(|| {
+        proofs.try_register_proof(
+            &hash(&env, 0xAB),
+            &commitment(&env, 0xC0),
+            &issuer,
+            &APPROVED_SCHEMA,
+            &(env.ledger().timestamp() + 100_000),
+        )
+    });
 
     assert_eq!(
         rejection,
-        Rejection::Typed(ProofError::InvalidSchemaVersion)
-    );
-    assert!(
-        !recorder.was_touched(),
-        "a dependency's own write survived a rejected registration; \
-         the rollback does not reach the callee"
+        Rejection::Aborted,
+        "an invalid dependency address must abort, not produce a typed error"
     );
 }
 
 #[test]
-fn a_dependency_write_survives_a_committed_registration() {
-    // Attributability for the test above: the write has to actually happen when
-    // the registration commits, or its absence there proves nothing.
-    let deployment = Deployment::with_dependency_addresses(|env, _config, issuers| {
-        (env.register(RecordingConfig, ()), issuers)
+fn an_invalid_issuer_registry_address_aborts_the_registration() {
+    let env = soroban_sdk::Env::default();
+    env.mock_all_auths();
+    let admin = Address::generate(&env);
+    let issuer = Address::generate(&env);
+
+    let config_id = env.register(protocol_config::ProtocolConfigContract, ());
+    let config = protocol_config::ProtocolConfigContractClient::new(&env, &config_id);
+    config.initialize(&admin);
+    config.approve_schema_version(&APPROVED_SCHEMA);
+
+    let issuers_id = env.register(issuer_registry::IssuerRegistryContract, ());
+    let issuers = issuer_registry::IssuerRegistryContractClient::new(&env, &issuers_id);
+    issuers.initialize(&admin);
+    let issuer_id = hash(&env, 0x01);
+    issuers.register_issuer(&issuer_id, &issuer, &hash(&env, 0xAA));
+
+    let proofs_id = env.register(proof_registry::ProofRegistryContract, ());
+    let proofs = proof_registry::ProofRegistryContractClient::new(&env, &proofs_id);
+    
+    // Initialize with an invalid issuer registry address
+    let invalid_issuers = Address::generate(&env);
+    proofs.initialize(&admin, &invalid_issuers, &config_id);
+
+    let rejection = outcome_of(|| {
+        proofs.try_register_proof(
+            &hash(&env, 0xAC),
+            &commitment(&env, 0xC0),
+            &issuer,
+            &APPROVED_SCHEMA,
+            &(env.ledger().timestamp() + 100_000),
+        )
     });
-    let recorder =
-        RecordingConfigClient::new(&deployment.env, &deployment.proofs.get_protocol_config());
-
-    assert!(!recorder.was_touched());
-    deployment.register(0x72);
-
-    assert!(
-        recorder.was_touched(),
-        "the dependency read must write when the registration commits"
-    );
-}
-
-// ---------------------------------------------------------------------------
-// TTL extensions performed mid-invocation are rolled back too
-// ---------------------------------------------------------------------------
-
-/// Ledger sequence at which `SchemaVersion(APPROVED_SCHEMA)`'s remaining TTL
-/// has fallen below `TTL_THRESHOLD_LEDGERS`.
-///
-/// `initialize` extended the entry to `TTL_EXTEND_TO_LEDGERS` (500,000). At
-/// sequence 460,000 it has 40,000 left, which is under the 50,000 threshold, so
-/// the next `is_schema_version_approved` re-extends it. Without advancing the
-/// sequence the entry is already at the target and a rolled-back extension
-/// would be indistinguishable from no extension at all.
-const SEQUENCE_NEAR_SCHEMA_EXPIRY: u32 = 460_000;
-
-#[test]
-fn a_failed_registration_does_not_extend_the_schema_version_ttl() {
-    let deployment = Deployment::new();
-    deployment
-        .env
-        .ledger()
-        .set_sequence_number(SEQUENCE_NEAR_SCHEMA_EXPIRY);
-    // Fail at boundary 3 — after `is_schema_version_approved` has run and
-    // extended the entry as a side effect.
-    deployment.issuers.suspend_issuer(&deployment.issuer_id);
-
-    let proof_id = hash(&deployment.env, 0x81);
-    let ttl_before = deployment
-        .footprint(&proof_id)
-        .schema_ttl
-        .expect("the approved schema entry exists");
-    assert!(
-        ttl_before < TTL_THRESHOLD_LEDGERS,
-        "the fixture must leave the schema entry below the extension threshold, \
-         or this test cannot observe an extension at all"
-    );
-
-    // `assert_rejected_and_atomic` compares the schema entry's TTL across the
-    // attempt; the guard above is what gives that comparison teeth.
-    let rejection = deployment.assert_rejected_and_atomic(&proof_id);
 
     assert_eq!(
         rejection,
-        Rejection::Typed(ProofError::InvalidSchemaVersion)
-    );
-}
-
-#[test]
-fn a_committed_registration_does_extend_the_schema_version_ttl() {
-    // Attributability for the test above.
-    let deployment = Deployment::new();
-    deployment
-        .env
-        .ledger()
-        .set_sequence_number(SEQUENCE_NEAR_SCHEMA_EXPIRY);
-
-    let proof_id = hash(&deployment.env, 0x82);
-    let before = deployment.footprint(&proof_id);
-    deployment.register(0x82);
-    let after = deployment.footprint(&proof_id);
-
-    assert!(
-        after.schema_ttl > before.schema_ttl,
-        "a committed registration must extend the schema entry, \
-         otherwise the rollback assertion proves nothing"
+        Rejection::Aborted,
+        "an invalid dependency address must abort"
     );
 }

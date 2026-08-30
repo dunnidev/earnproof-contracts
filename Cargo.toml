@@ -13,7 +13,9 @@ members = [
   "tests/property",
   "tests/time",
   "tests/encoding",
-  "tests/address-validation"
+  "tests/address-validation",
+  "tests/ttl",
+  "fuzz"
 ]
 resolver = "2"
 
