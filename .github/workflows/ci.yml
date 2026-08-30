@@ -66,6 +66,24 @@ jobs:
       - name: Run resource budget regression tests
         run: cargo test -p resource-budget-tests --release
 
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo install cargo-fuzz --version 0.11
+      - name: Run fuzz smoke tests (30s per target)
+        run: |
+          cargo fuzz run fuzz_proof_record_decode -- -max_total_time=30
+          cargo fuzz run fuzz_issuer_record_decode -- -max_total_time=30
+          cargo fuzz run fuzz_issuer_status_decode -- -max_total_time=30
+          cargo fuzz run fuzz_proof_status_decode -- -max_total_time=30
+          cargo fuzz run fuzz_address_validation -- -max_total_time=30
+          cargo fuzz run fuzz_entry_point_register_proof -- -max_total_time=30
+
   # Bounded mutation testing for the security-critical authorization/validation
   # branches (see tests/mutation/ and docs/testing.md). This is a full mutant run
   # and is intentionally not part of the fast PR loop: it runs on a weekly
