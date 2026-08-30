@@ -2,8 +2,65 @@
 
 use soroban_sdk::{contracterror, contracttype, Address, BytesN};
 
+// ── Storage TTL Configuration ──────────────────────────────────────────────────
+// These constants control how long contract data persists on the Soroban ledger.
+// All contracts use these shared values to ensure consistent expiration behavior.
+
+/// Minimum ledgers before TTL entries are considered at risk. Used to trigger
+/// preemptive TTL extension before entries expire.
 pub const TTL_THRESHOLD_LEDGERS: u32 = 50_000;
+
+/// Target ledgers for extended TTL after triggering a preemptive extension.
 pub const TTL_EXTEND_TO_LEDGERS: u32 = 500_000;
+
+// A Stellar strkey address (G...) is always exactly 56 ASCII characters.
+// soroban_sdk::String has no .chars() (unlike std::string::String, and
+// unlike Symbol, this isn't even gated off-WASM only - it simply doesn't
+// exist on any target in this SDK version) and doesn't implement
+// PartialEq<&str>, only String == String - copy_into_slice() into a fixed
+// buffer and comparing raw ASCII bytes is the actual supported way to
+// inspect a soroban_sdk::String's contents on every target.
+const STRKEY_ADDRESS_LEN: usize = 56;
+
+fn address_bytes(address: &Address) -> [u8; STRKEY_ADDRESS_LEN] {
+    let value = address.to_string();
+    let mut buf = [0u8; STRKEY_ADDRESS_LEN];
+    if value.len() as usize == STRKEY_ADDRESS_LEN {
+        value.copy_into_slice(&mut buf);
+    }
+    buf
+}
+
+// The strkey encoding of an all-zero (32-byte) ed25519 public key: version
+// byte 'G' + 32 zero payload bytes + a real CRC16/XMODEM checksum over
+// those 33 bytes, base32-encoded. The checksum is NOT itself all zero bits
+// (a correct checksum over an all-zero payload is not the all-zero
+// checksum), so this string does not end in all 'A's — comparing the
+// full string against this one known-correct value is the only way to
+// recognize it; a pattern check like "G followed by all A's" would (and
+// previously did) silently never match a real, correctly-checksummed
+// all-zero-payload address at all.
+const ZERO_PAYLOAD_STRKEY: &[u8; STRKEY_ADDRESS_LEN] =
+    b"GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
+
+pub fn is_zero_or_sentinel_address(address: &Address) -> bool {
+    let bytes = address_bytes(address);
+    &bytes == ZERO_PAYLOAD_STRKEY
+}
+
+pub fn is_valid_principal_address(address: &Address) -> bool {
+    let value = address.to_string();
+    if value.is_empty() || value.len() as usize != STRKEY_ADDRESS_LEN {
+        return false;
+    }
+    let bytes = address_bytes(address);
+    if is_zero_or_sentinel_address(address) {
+        return false;
+    }
+    bytes
+        .iter()
+        .all(|&byte| matches!(byte, b'A'..=b'Z' | b'2'..=b'7'))
+}
 
 // ---------------------------------------------------------------------------
 // Error Codes
@@ -37,6 +94,7 @@ pub enum ContractError {
 
     // Input validation errors (60-79)
     InvalidInput = 60,
+    InvalidAddress = 61,
 
     // Protocol state errors (80-99)
     ProtocolPaused = 80,
@@ -54,6 +112,7 @@ pub enum IssuerError {
     IssuerRevoked = 204,
     IssuerInactive = 205,
     InvalidTransition = 206,
+    InvalidAddress = 207,
 }
 
 /// Proof-specific errors (300-399).
@@ -67,6 +126,7 @@ pub enum ProofError {
     ProofExpired = 303,
     InvalidSchemaVersion = 304,
     SchemaVersionNotApproved = 305,
+    InvalidAddress = 306,
 }
 
 #[contracttype]
@@ -106,4 +166,99 @@ pub struct ProofRecord {
     pub expires_at: u64,
     pub created_at: u64,
     pub revoked_at: u64,
+}
+
+// ── Shared Test Utilities ──────────────────────────────────────────────────────
+// These utilities provide common patterns for initialization adversarial testing
+// across all contracts, ensuring consistent test coverage for re-initialization
+// guards, invalid dependencies, and state/event immutability on failure.
+
+#[cfg(test)]
+pub mod test_utils {
+    use super::*;
+
+    /// Represents the expected state after successful initialization.
+    /// Used to verify that first initialization produces exactly the documented
+    /// state with no partial writes.
+    #[derive(Clone, Debug, Eq, PartialEq)]
+    pub struct InitializedState {
+        /// The admin address that was set during initialization.
+        pub admin: Address,
+        /// True if the contract emitted an event during initialization.
+        pub event_emitted: bool,
+        /// Additional state keys that should be present after initialization.
+        pub expected_keys: Vec<&'static str>,
+    }
+
+    /// Test result for re-initialization attempts.
+    /// Captures whether the attempt failed and whether state remained unchanged.
+    #[derive(Clone, Debug, Eq, PartialEq)]
+    pub struct ReinitAttemptResult {
+        /// True if re-initialization attempt failed (panicked or errored).
+        pub failed: bool,
+        /// True if storage state is byte-for-byte identical before and after attempt.
+        pub state_unchanged: bool,
+        /// True if no new events were emitted during the failed attempt.
+        pub no_new_events: bool,
+    }
+
+    /// Test result for invalid dependency/configuration initialization attempts.
+    /// Captures whether the attempt failed and whether state remained atomic.
+    #[derive(Clone, Debug, Eq, PartialEq)]
+    pub struct InvalidDependencyResult {
+        /// True if initialization attempt failed.
+        pub failed: bool,
+        /// True if storage state is unchanged after the failed attempt.
+        pub atomic_failure: bool,
+        /// True if no events were emitted during the failed attempt.
+        pub no_events: bool,
+    }
+
+    /// Documents the initialization contract's behavior for test purposes.
+    /// This structure is filled out for each contract being tested and serves
+    /// as the specification against which adversarial tests validate behavior.
+    #[derive(Clone, Debug)]
+    pub struct ContractInitSpec {
+        /// Name of the contract being tested.
+        pub contract_name: &'static str,
+        /// True if this contract has a re-initialization guard.
+        pub has_reinit_guard: bool,
+        /// True if this contract emits an event during initialization.
+        pub emits_init_event: bool,
+        /// True if this contract takes dependency addresses as initialization parameters.
+        pub takes_dependencies: bool,
+        /// List of dependency contract names this contract requires (e.g., ["issuer-registry", "protocol-config"]).
+        pub dependency_names: Vec<&'static str>,
+    }
+
+    impl ContractInitSpec {
+        /// Helper to create a spec for a standalone contract with a re-initialization guard.
+        pub fn standalone_with_guard(
+            name: &'static str,
+            emits_event: bool,
+        ) -> Self {
+            ContractInitSpec {
+                contract_name: name,
+                has_reinit_guard: true,
+                emits_init_event: emits_event,
+                takes_dependencies: false,
+                dependency_names: vec![],
+            }
+        }
+
+        /// Helper to create a spec for a contract with dependencies and a re-initialization guard.
+        pub fn with_dependencies_and_guard(
+            name: &'static str,
+            deps: Vec<&'static str>,
+            emits_event: bool,
+        ) -> Self {
+            ContractInitSpec {
+                contract_name: name,
+                has_reinit_guard: true,
+                emits_init_event: emits_event,
+                takes_dependencies: true,
+                dependency_names: deps,
+            }
+        }
+    }
 }

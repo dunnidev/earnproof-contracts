@@ -13,6 +13,16 @@ Every path below is repository-relative and every line number is valid at the
 commit named above. If the commit differs from the one you are reviewing, treat
 this index as stale and see [Refresh checklist](#refresh-checklist).
 
+**Related documents:**
+
+- [`docs/threat-model.md`](../threat-model.md) — the structured threat model
+  this index draws its threat assumptions from: trust boundaries, actors,
+  attack surface, and mainnet release gates. Read that document first for
+  narrative context; this index is the code-and-test-level evidence trail for
+  the claims it makes.
+- [`SECURITY.md`](../../SECURITY.md) — how to report a vulnerability
+  (`security@veridatum.dev`) and what to include in a report.
+
 ## How to read this index
 
 Each claim carries an explicit status. The distinction matters: an auditor
@@ -399,7 +409,6 @@ Every gap links to a tracking issue. None is silently accepted.
 | No fuzzing of shared type decoding | Malformed input handling unproven | [#37](https://github.com/veridatum-labs/earnproof-contracts/issues/37) |
 | No per-contract invariant specifications | This index is the only invariant catalogue | [#39](https://github.com/veridatum-labs/earnproof-contracts/issues/39) |
 | No deterministic ledger-time and expiration edge-case tests | Expiry boundary behaviour partially unproven | [#40](https://github.com/veridatum-labs/earnproof-contracts/issues/40) |
-| No documented threat model | Threat assumptions are recorded here, not derived from a structured model | [#20](https://github.com/veridatum-labs/earnproof-contracts/issues/20) |
 | No resource budget or WASM size regression gates | A change could exceed network limits undetected | [#19](https://github.com/veridatum-labs/earnproof-contracts/issues/19) |
 | No ABI or storage compatibility golden tests | A storage layout change could go unnoticed | [#33](https://github.com/veridatum-labs/earnproof-contracts/issues/33) |
 | Backend↔contract hashing vectors unpublished | Hash construction cannot be independently checked | [#43](https://github.com/veridatum-labs/earnproof-contracts/issues/43) |

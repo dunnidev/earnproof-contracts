@@ -530,6 +530,7 @@
         "NotFound",
         "InvalidState",
         "InvalidInput",
+        "InvalidAddress",
         "ProtocolPaused"
       ]
     },
@@ -542,7 +543,8 @@
         "IssuerAddressNotFound",
         "IssuerRevoked",
         "IssuerInactive",
-        "InvalidTransition"
+        "InvalidTransition",
+        "InvalidAddress"
       ]
     },
     {
@@ -553,7 +555,8 @@
         "ProofAlreadyRevoked",
         "ProofExpired",
         "InvalidSchemaVersion",
-        "SchemaVersionNotApproved"
+        "SchemaVersionNotApproved",
+        "InvalidAddress"
       ]
     }
   ],
