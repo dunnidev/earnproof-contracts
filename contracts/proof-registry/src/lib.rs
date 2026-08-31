@@ -233,7 +233,6 @@ impl ProofRegistryContract {
     pub fn approve_upgrade(env: Env, wasm_hash: BytesN<32>, new_version: u32) {
 
         let admin = Self::get_admin(env.clone()).expect("contract not initialized");
- develop
         Self::require_auth(&admin);
 
         let current = Self::get_contract_version(env.clone());
@@ -258,7 +257,6 @@ impl ProofRegistryContract {
     pub fn revoke_upgrade(env: Env, wasm_hash: BytesN<32>) {
 
         let admin = Self::get_admin(env.clone()).expect("contract not initialized");
- develop
         Self::require_auth(&admin);
 
         env.storage()
@@ -291,7 +289,6 @@ impl ProofRegistryContract {
     pub fn upgrade_contract(env: Env, wasm_hash: BytesN<32>) {
 
         let admin = Self::get_admin(env.clone()).expect("contract not initialized");
- develop
         Self::require_auth(&admin);
 
         let new_version: u32 = env
@@ -365,7 +362,6 @@ impl ProofRegistryContract {
         Ok(())
     }
 
- develop
     fn set_revoked(env: Env, proof_id_hash: BytesN<32>, by_admin: bool) -> Result<(), ProofError> {
         let key = DataKey::Proof(proof_id_hash.clone());
         let mut record: ProofRecord = env

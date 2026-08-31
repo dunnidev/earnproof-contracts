@@ -175,6 +175,9 @@ pub struct ProofRecord {
 
 #[cfg(test)]
 pub mod test_utils {
+    extern crate std;
+    use std::vec;
+    use std::vec::Vec;
     use super::*;
 
     /// Represents the expected state after successful initialization.

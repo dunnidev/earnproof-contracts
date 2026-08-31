@@ -212,8 +212,6 @@ impl ProtocolConfigContract {
     pub fn approve_upgrade(env: Env, wasm_hash: BytesN<32>, new_version: u32) {
 
         let admin = Self::get_admin(env.clone()).expect("contract not initialized");
-
- develop
         Self::require_auth(&admin);
 
         let current = Self::get_contract_version(env.clone());
@@ -239,7 +237,6 @@ impl ProtocolConfigContract {
     pub fn revoke_upgrade(env: Env, wasm_hash: BytesN<32>) {
 
         let admin = Self::get_admin(env.clone()).expect("contract not initialized");
- develop
         Self::require_auth(&admin);
 
         env.storage()
@@ -274,7 +271,6 @@ impl ProtocolConfigContract {
     pub fn upgrade_contract(env: Env, wasm_hash: BytesN<32>) {
 
         let admin = Self::get_admin(env.clone()).expect("contract not initialized");
- develop
         Self::require_auth(&admin);
 
         let new_version: u32 = env
