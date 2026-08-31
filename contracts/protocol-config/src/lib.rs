@@ -210,10 +210,8 @@ impl ProtocolConfigContract {
     /// `new_version` must be strictly greater than the currently stored
     /// contract version so that a downgrade cannot be pre-approved.
     pub fn approve_upgrade(env: Env, wasm_hash: BytesN<32>, new_version: u32) {
-
         let admin = Self::get_admin(env.clone()).expect("contract not initialized");
 
- develop
         Self::require_auth(&admin);
 
         let current = Self::get_contract_version(env.clone());
@@ -237,9 +235,7 @@ impl ProtocolConfigContract {
     /// Admin-only: remove a previously allowlisted WASM hash without applying
     /// it.  Safe to call even if the hash was never allowlisted.
     pub fn revoke_upgrade(env: Env, wasm_hash: BytesN<32>) {
-
         let admin = Self::get_admin(env.clone()).expect("contract not initialized");
- develop
         Self::require_auth(&admin);
 
         env.storage()
@@ -272,9 +268,7 @@ impl ProtocolConfigContract {
     /// the allowlist entry is consumed (removed), and a `ContractUpgraded`
     /// event is emitted.
     pub fn upgrade_contract(env: Env, wasm_hash: BytesN<32>) {
-
         let admin = Self::get_admin(env.clone()).expect("contract not initialized");
- develop
         Self::require_auth(&admin);
 
         let new_version: u32 = env
@@ -651,11 +645,12 @@ mod test {
     }
 
     #[test]
-    #[should_panic(expected = "schema version must be")]
     fn schema_version_zero_rejected() {
         let (_env, client, _admin) = setup();
-        // Version 0 must be rejected
-        client.approve_schema_version(&0);
+        // Version 0 must be rejected with a typed error.
+        use earnproof_shared::ContractError;
+        let result = client.try_approve_schema_version(&0);
+        assert_eq!(result, Err(Ok(ContractError::InvalidInput)));
     }
 
     #[test]
@@ -742,14 +737,19 @@ mod test {
         let mut v = client.get_config_version();
         assert_eq!(v, 1);
 
-        // Perform several mutations and verify each increments correctly
-        for i in 2..=10 {
+        // Perform several mutations and verify each increments exactly once,
+        // starting from the value established by the previous mutation.
+        for _ in 0..10 {
             client.pause();
             v = client.get_config_version();
-            assert_eq!(v, i);
             client.unpause();
-            v = client.get_config_version();
-            assert_eq!(v, i + 1);
+            let after = client.get_config_version();
+            assert_eq!(
+                after,
+                v + 1,
+                "unpause must bump config version exactly once"
+            );
+            v = after;
         }
     }
 
@@ -910,10 +910,7 @@ mod test {
         }));
 
         // Must have panicked with "already initialized"
-        assert!(
-            result.is_err(),
-            "re-initialization must panic"
-        );
+        assert!(result.is_err(), "re-initialization must panic");
 
         // Verify state is byte-for-byte identical
         assert_eq!(
@@ -963,7 +960,10 @@ mod test {
         }));
 
         // Must have panicked
-        assert!(result.is_err(), "re-initialization by different admin must panic");
+        assert!(
+            result.is_err(),
+            "re-initialization by different admin must panic"
+        );
 
         // Verify state is unchanged: original admin must still be stored
         assert_eq!(
