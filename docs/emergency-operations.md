@@ -9,6 +9,11 @@ Scope is the on-chain surface only. Backend containment (API rate limits, key
 custody, webhook suspension) is out of scope here and belongs to
 `earnproof-backend`.
 
+For what to monitor while paused, how to investigate, escalation timing, who
+to notify and when, and the post-incident review process, see
+[`docs/runbooks/incident-communication.md`](runbooks/incident-communication.md) —
+this document is the on-chain specification that runbook builds on top of.
+
 ## The pause switch
 
 `protocol-config` owns a single boolean. `proof-registry` reads it over a
@@ -185,4 +190,6 @@ This document is stale when any of the following happens:
 - [ ] An authority rule changes → update "Authority rules" and `admin_rotation.rs`.
 - [ ] An operation's acceptance conditions change → update `Model::apply` in
       `sequences.rs`, which is written from this document by design.
-- [ ] `proof-registry` gains events → remove the known gap above.
+- [ ] `proof-registry` gains events → remove the known gap above, and update
+      the corresponding note in `docs/runbooks/incident-communication.md`'s
+      investigation procedure.
