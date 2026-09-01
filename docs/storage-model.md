@@ -24,6 +24,8 @@ When `extend_ttl(threshold, extend_to)` is called:
 - At `expiry_ledger`: entry is **still valid**
 - At `expiry_ledger + 1`: entry is **expired**
 
+Namespace ownership, key-collision safety, and the rules for adding a storage key are documented separately in [Storage Namespaces and Key Safety](./storage.md).
+
 ---
 
 ## Storage Entries by Contract

@@ -2,6 +2,9 @@
 
 use soroban_sdk::{contracterror, contracttype, Address, BytesN};
 
+pub mod storage_namespaces;
+
+pub use storage_namespaces::{StorageClass, StorageNamespace, STORAGE_NAMESPACES};
 pub mod error_catalog;
 
 pub use error_catalog::{Domain, ErrorSpec, Retry, Status, ERROR_CATALOG};
