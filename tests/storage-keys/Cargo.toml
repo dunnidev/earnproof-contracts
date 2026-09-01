@@ -1,6 +1,5 @@
 [package]
-name = "ttl-boundary-tests"
-name = "ttl-tests"
+name = "storage-key-tests"
 version = "0.1.0"
 edition.workspace = true
 license.workspace = true

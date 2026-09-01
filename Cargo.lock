@@ -766,6 +766,7 @@ dependencies = [
 name = "encoding-vector-tests"
 version = "0.1.0"
 dependencies = [
+ "sha2",
  "earnproof-shared",
  "issuer-registry",
  "proof-registry",
@@ -801,6 +802,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
+name = "error-catalog-tests"
+version = "0.1.0"
+dependencies = [
+ "earnproof-shared",
+ "issuer-registry",
+ "proof-registry",
+ "protocol-config",
+ "soroban-sdk",
 name = "errno"
 version = "0.3.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1164,6 +1173,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb26cec98cce3a3d96cbb7bced3c4b16e3d13f27ec56dbd62cbc8f39cfb9d653"
 dependencies = [
  "cpufeatures 0.2.17",
+]
+
+[[package]]
+name = "ledger-snapshot-tests"
+version = "0.1.0"
+dependencies = [
+ "earnproof-shared",
+ "issuer-registry",
+ "proof-registry",
+ "protocol-config",
+ "sha2",
+ "soroban-sdk",
 ]
 
 [[package]]
@@ -2016,6 +2037,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "storage-key-tests"
+version = "0.1.0"
+dependencies = [
+ "earnproof-shared",
+ "issuer-registry",
+ "proof-registry",
+ "protocol-config",
+ "soroban-sdk",
+]
+
+[[package]]
 name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2118,6 +2150,7 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "ttl-tests"
+name = "ttl-boundary-tests"
 version = "0.1.0"
 dependencies = [
  "earnproof-shared",
