@@ -13,6 +13,7 @@ members = [
   "tests/property",
   "tests/time",
   "tests/encoding",
+  "tests/error-catalog"
   "tests/ledger-snapshots"
   "tests/address-validation",
   "tests/ttl",

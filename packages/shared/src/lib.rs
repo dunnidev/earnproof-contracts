@@ -2,12 +2,10 @@
 
 use soroban_sdk::{contracterror, contracttype, Address, BytesN};
 
-// ── Storage TTL Configuration ──────────────────────────────────────────────────
-// These constants control how long contract data persists on the Soroban ledger.
-// All contracts use these shared values to ensure consistent expiration behavior.
+pub mod error_catalog;
 
-/// Minimum ledgers before TTL entries are considered at risk. Used to trigger
-/// preemptive TTL extension before entries expire.
+pub use error_catalog::{Domain, ErrorSpec, Retry, Status, ERROR_CATALOG};
+
 pub const TTL_THRESHOLD_LEDGERS: u32 = 50_000;
 
 /// Target ledgers for extended TTL after triggering a preemptive extension.
