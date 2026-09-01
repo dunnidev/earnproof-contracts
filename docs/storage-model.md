@@ -24,6 +24,8 @@ When `extend_ttl(threshold, extend_to)` is called:
 - At `expiry_ledger`: entry is **still valid**
 - At `expiry_ledger + 1`: entry is **expired**
 
+Namespace ownership, key-collision safety, and the rules for adding a storage key are documented separately in [Storage Namespaces and Key Safety](./storage.md).
+
 ---
 
 ## Storage Entries by Contract
@@ -52,6 +54,7 @@ When `extend_ttl(threshold, extend_to)` is called:
 |-------|---------|-----------------|-------------------|------------|
 | Approved Schema Version | `SchemaVersion(ver)` | `is_schema_version_approved(ver)` reads & extends | Returns false | ✓ Yes |
 
+Soroban does not automatically extend TTLs. Every entry will expire and be archived unless a contract call explicitly extends it before the ledger cutoff. Archived persistent entries are restored automatically on the next access, at the cost of an extra ledger write and rent bump. The exact boundaries, restoration semantics, and operator cadence are documented in [Storage TTL, Expiration, and Restoration](./storage-ttl.md).
 **Persistent TTL Extension**: Called via `extend_schema_ttl(version)` on:
 - `approve_schema_version(ver)`: extends on approval
 - `deprecate_schema_version(ver)`: extends on deprecation
@@ -232,6 +235,7 @@ Tests exercise:
 
 ## Debugging TTL Issues
 
+The `proof-registry` contract holds references to `issuer-registry` and `protocol-config` in its instance storage. These addresses are read by `get_issuer_registry()` and `get_protocol_config()`, which do **not** extend the proof registry's instance TTL. `initialize` is in fact the only proof-registry entry point that extends the instance entry: `register_proof` extends the proof entry it writes, not the instance. A long-idle registry therefore relies on automatic restoration of its instance entry, as described in [Storage TTL, Expiration, and Restoration](./storage-ttl.md).
 ### Symptoms & Resolution
 
 | Issue | Root Cause | Resolution |

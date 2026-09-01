@@ -4,12 +4,13 @@ extern crate alloc;
 
 use soroban_sdk::{contracterror, contracttype, Address, BytesN};
 
-// ── Storage TTL Configuration ──────────────────────────────────────────────────
-// These constants control how long contract data persists on the Soroban ledger.
-// All contracts use these shared values to ensure consistent expiration behavior.
+pub mod storage_namespaces;
 
-/// Minimum ledgers before TTL entries are considered at risk. Used to trigger
-/// preemptive TTL extension before entries expire.
+pub use storage_namespaces::{StorageClass, StorageNamespace, STORAGE_NAMESPACES};
+pub mod error_catalog;
+
+pub use error_catalog::{Domain, ErrorSpec, Retry, Status, ERROR_CATALOG};
+
 pub const TTL_THRESHOLD_LEDGERS: u32 = 50_000;
 
 /// Target ledgers for extended TTL after triggering a preemptive extension.
@@ -177,6 +178,9 @@ pub struct ProofRecord {
 
 #[cfg(test)]
 pub mod test_utils {
+    extern crate std;
+    use std::vec;
+    use std::vec::Vec;
     use super::*;
     use alloc::{vec, vec::Vec};
 
