@@ -872,7 +872,12 @@ Use this checklist to verify security controls against the current codebase.
 
 ## References
 
+- [Contract Invariants](./invariants/README.md) — Formal per-contract state invariant and transition specifications
+  - [Protocol Config Specification](./invariants/protocol-config.md)
+  - [Issuer Registry Specification](./invariants/issuer-registry.md)
+  - [Proof Registry Specification](./invariants/proof-registry.md)
 - [Storage Model](./storage-model.md) — Authoritative storage key reference
+- [Time Semantics](./time-semantics.md) — Timestamp interval boundaries and verification semantics
 - [Backend Integration](./backend-integration.md) — Contract call patterns and error handling
 - [Security Policy](../SECURITY.md) — Vulnerability reporting process
 - [Soroban Documentation](https://soroban.stellar.org/docs) — Soroban security best practices

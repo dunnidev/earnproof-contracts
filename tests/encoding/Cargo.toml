@@ -11,3 +11,8 @@ doctest = false
 
 [dev-dependencies]
 sha2 = "0.10"
+issuer-registry = { path = "../../contracts/issuer-registry" }
+proof-registry = { path = "../../contracts/proof-registry" }
+protocol-config = { path = "../../contracts/protocol-config" }
+earnproof-shared = { path = "../../packages/shared" }
+soroban-sdk = { workspace = true, features = ["testutils"] }

@@ -1,6 +1,9 @@
 # Backend Encoding Vectors
 
-The canonical fixture is [vectors.json](../tests/fixtures/encoding/vectors.json); the tab-separated form is consumed by the Rust test at `tests/encoding/src/lib.rs::sha256_vectors_match_published_hex`.
+The canonical fixture is [vectors.json](../tests/fixtures/encoding/vectors.json); the tab-separated form is consumed by two Rust test modules:
+
+- `tests/encoding/src/lib.rs::sha256_vectors_match_published_hex` proves the fixture's hex digests are genuinely SHA-256 of their documented UTF-8 source strings — that following the rule below produces the published bytes.
+- `tests/encoding/src/contract_compatibility.rs` proves those exact bytes are accepted by the REAL `issuer-registry`/`proof-registry` contracts when passed as `BytesN<32>`, and that the events those contracts emit in response carry the identical bytes back out — a full backend → contract → event round-trip, not just a standalone hashing check.
 
 ## Rules
 
