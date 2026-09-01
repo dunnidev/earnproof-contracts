@@ -195,6 +195,7 @@ Contracts may store:
 ## Documentation
 
 - [Storage Model](docs/storage-model.md) — every DataKey variant, TTL policy, lifecycle events, and privacy boundaries
+- [Storage TTL, Expiration, and Restoration](docs/storage-ttl.md) — extension triggers, expiry boundaries, restoration behavior, and operator responsibilities
 - [Storage Namespaces and Key Safety](docs/storage.md) — namespace ownership, key-collision guarantees, durability rules, and the compatibility gate for new keys
 - [Contract Error Catalog](docs/errors.md) — every error code with its cause, retry classification, and remediation
 - [Backend Integration](docs/backend-integration.md) — contract calls and hashing rules for the EarnProof API
