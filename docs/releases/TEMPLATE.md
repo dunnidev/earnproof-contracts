@@ -58,8 +58,12 @@
   The exact steps a consumer takes. If none are required, write "None." and say
   why — an empty section reads as an oversight.
 
-  These contracts have no upgrade mechanism, so any storage change means
-  redeployment and off-chain trust migration. Say so plainly if it applies.
+  These contracts support an in-place code upgrade
+  (approve_upgrade/upgrade_contract — see docs/contract-upgrades.md), but it
+  swaps code, not storage: a storage-incompatible change still means
+  redeployment to a new contract ID and off-chain trust migration. Say so
+  plainly if it applies; for an ABI/events-only breaking change, describe
+  the approve_upgrade -> upgrade_contract sequence instead.
 -->
 
 None.
@@ -83,9 +87,12 @@ Unchanged.
   How to return to the previous artifact, or why it is not possible.
 
   "Redeploy the previous WASM" is only a rollback if state is compatible.
-  Because these contracts have no upgrade path, redeploying produces a NEW
-  contract ID: the old ID keeps running the new code, and state does not
-  travel. Say that plainly when it applies.
+  For an ABI/events-only change, the in-place upgrade mechanism can restore
+  the previous WASM to the SAME contract ID (approve_upgrade +
+  upgrade_contract with the prior hash). For a storage-incompatible change,
+  that mechanism cannot help: redeploying produces a NEW contract ID, the
+  old ID keeps running the newer code, and state does not travel. Say
+  which case applies, plainly.
 -->
 
 <Steps, or an explicit statement that rollback is not possible and what that costs.>

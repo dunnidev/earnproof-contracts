@@ -1,0 +1,29 @@
+# scenario: initialized
+# revision: 3
+# reason: initial snapshots of the five representative lifecycle states
+# body-digest: a287125946b7f05c34fb69f903bfb2137ff40fe75f0ea92839a2b0e8770ca5da
+
+[ledger]
+sequence = 1000
+timestamp = 1000
+
+[storage]
+issuer-registry instance [sym:Admin] = addr:admin
+proof-registry instance [sym:Admin] = addr:admin
+proof-registry instance [sym:IssuerRegistry] = addr:issuer-registry
+proof-registry instance [sym:ProtocolConfig] = addr:protocol-config
+protocol-config instance [sym:Admin] = addr:admin
+protocol-config instance [sym:ConfigVersion] = u32:2
+protocol-config instance [sym:Paused] = false
+protocol-config persistent [sym:SchemaVersion, u32:1] = true
+
+[events]
+protocol-config topics=[sym:initialized] data={sym:admin: addr:admin}
+protocol-config topics=[sym:schema_approved] data={sym:version: u32:1}
+
+[verdicts]
+protocol-config.is_paused = false
+protocol-config.is_schema_version_approved(1) = true
+issuer-registry.is_active_address(issuer) = false
+proof-registry.is_valid_proof(proof) = false
+proof-registry.is_revoked(proof) = false
