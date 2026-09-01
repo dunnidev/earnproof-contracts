@@ -184,12 +184,26 @@ A release note claiming a breaking change without all four is incomplete, and
 
 ### Why rollback is hard here
 
-These contracts have no upgrade mechanism. A "rollback" means deploying the
-previous WASM to a **new** contract ID and re-pointing every consumer, because
-the old ID keeps running the new code. State does not travel with it.
+All three contracts have an in-place upgrade mechanism
+(`approve_upgrade`/`upgrade_contract`, documented in
+[`docs/contract-upgrades.md`](contract-upgrades.md)) — the WASM behind an
+existing contract ID can be swapped without redeploying. That mechanism
+swaps **code**, not **storage**: there is no migration hook, so it only
+carries a change through cleanly when the new code's deserialization
+tolerates the old stored bytes.
 
-That is the real cost of a breaking change in this repository, and it is why the
-governance bar is set where it is.
+For a storage-incompatible change, this means rollback still requires
+deploying the previous WASM to a **new** contract ID and re-pointing every
+consumer, because the old ID would now be running code that can't safely
+read state written under the newer shape. State does not travel with it.
+See [`docs/contract-upgrades.md`](contract-upgrades.md#storage-migration-strategy)
+for the two concrete strategies for this case.
+
+That is the real cost of a breaking storage change in this repository, and
+it is why the governance bar is set where it is — an ABI-only or
+events-only breaking change can go through the in-place upgrade path and
+still needs governance sign-off, but does not carry the same
+new-contract-ID cost.
 
 ## Versioning
 
